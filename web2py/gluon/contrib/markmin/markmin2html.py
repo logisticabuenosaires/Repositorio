@@ -3,17 +3,14 @@
 # created by Massimo Di Pierro
 # recreated by Vladyslav Kozlovskyy
 # license MIT/BSD/GPL
+from __future__ import print_function
 import re
 import urllib
-from cgi import escape
-from string import maketrans
+from gluon._compat import maketrans, urllib_quote, unicodeT, to_bytes, to_native, xrange
+from gluon.utils import local_html_escape as escape
+from ast import parse as ast_parse
+import ast
 
-try:
-    from ast import parse as ast_parse
-    import ast
-except ImportError:  # python 2.5
-    from compiler import parse
-    import compiler.ast as ast
 
 """
 TODO: next version should use MathJax
@@ -45,11 +42,11 @@ Example of usage:
 ``
 m = "Hello **world** [[link http://web2py.com]]"
 from markmin2html import markmin2html
-print markmin2html(m)
+print(markmin2html(m))
 from markmin2latex import markmin2latex
-print markmin2latex(m)
+print(markmin2latex(m))
 from markmin2pdf import markmin2pdf # requires pdflatex
-print markmin2pdf(m)
+print(markmin2pdf(m))
 ``
 ====================
 # This is a test block
@@ -650,7 +647,7 @@ def replace_components(text, env):
                 pass
             try:
                 f = f(**b) if isinstance(b, dict) else f(b)
-            except Exception, e:
+            except Exception as e:
                 f = 'ERROR: %s' % e
             return str(f)
 
@@ -803,7 +800,7 @@ def render(text,
     >>> render("``aaa``:custom", extra=dict(custom=lambda text: 'x'+text+'x'))
     'xaaax'
 
-    >>> print render(r"$$\int_a^b sin(x)dx$$")
+    >>> print(render(r"$$\int_a^b sin(x)dx$$"))
     <img src="http://chart.apis.google.com/chart?cht=tx&chl=%5Cint_a%5Eb%20sin%28x%29dx" />
 
     >>> markmin2html(r"use backslash: \[\[[[mess\[[ag\]]e link]]\]]")
@@ -949,12 +946,11 @@ def render(text,
     if protolinks == "default":
         protolinks = protolinks_simple
     pp = '\n' if pretty_print else ''
-    if isinstance(text, unicode):
-        text = text.encode('utf8')
-    text = str(text or '')
+    text = to_native(text)
+    if not (isinstance(text, str)):
+        text = str(text or '')
     text = regex_backslash.sub(lambda m: m.group(1).translate(ttab_in), text)
     text = text.replace('\x05', '').replace('\r\n', '\n')  # concatenate strings separeted by \\n
-
     if URL is not None:
         text = replace_at_urls(text, URL)
 
@@ -1417,7 +1413,7 @@ def render(text,
             return '[' + ','.join('<a href="#%s" class="%s">%s</a>' %
                                   (id_prefix + d, b, d) for d in escape(code).split(',')) + ']'
         elif b == 'latex':
-            return LATEX % urllib.quote(code)
+            return LATEX % urllib_quote(code)
         elif b in html_colors:
             return '<span style="color: %s">%s</span>' \
                    % (b, render(code, {}, {}, 'br', URL, environment, latex,
@@ -1494,17 +1490,17 @@ if __name__ == '__main__':
                 pre { background-color: #E0E0E0; padding: 5px; }
               </style>""")[1:]
 
-        print html % dict(title="Markmin markup language",
+        print(html % dict(title="Markmin markup language",
                           style=style,
-                          body=markmin2html(__doc__, pretty_print=True))
+                          body=markmin2html(__doc__, pretty_print=True)))
     elif sys.argv[1:2] == ['-t']:
         from timeit import Timer
 
         loops = 1000
         ts = Timer("markmin2html(__doc__)", "from markmin2html import markmin2html")
-        print 'timeit "markmin2html(__doc__)":'
+        print('timeit "markmin2html(__doc__)":')
         t = min([ts.timeit(loops) for i in range(3)])
-        print "%s loops, best of 3: %.3f ms per loop" % (loops, t / 1000 * loops)
+        print("%s loops, best of 3: %.3f ms per loop" % (loops, t / 1000 * loops))
     elif len(sys.argv) > 1:
         fargv = open(sys.argv[1], 'r')
         try:
@@ -1523,15 +1519,15 @@ if __name__ == '__main__':
             else:
                 markmin_style = ""
 
-            print html % dict(title=sys.argv[1], style=markmin_style,
-                              body=markmin2html(markmin_text, pretty_print=True))
+            print(html % dict(title=sys.argv[1], style=markmin_style,
+                              body=markmin2html(markmin_text, pretty_print=True)))
         finally:
             fargv.close()
 
     else:
-        print "Usage: " + sys.argv[0] + " -h | -t | file.markmin [file.css|@path_to/css]"
-        print "where: -h  - print __doc__"
-        print "       -t  - timeit __doc__ (for testing purpuse only)"
-        print "       file.markmin  [file.css] - process file.markmin + built in file.css (optional)"
-        print "       file.markmin  [@path_to/css] - process file.markmin + link path_to/css (optional)"
+        print("Usage: " + sys.argv[0] + " -h | -t | file.markmin [file.css|@path_to/css]")
+        print("where: -h  - print __doc__")
+        print("       -t  - timeit __doc__ (for testing purpuse only)")
+        print("       file.markmin  [file.css] - process file.markmin + built in file.css (optional)")
+        print("       file.markmin  [@path_to/css] - process file.markmin + link path_to/css (optional)")
         run_doctests()

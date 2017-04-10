@@ -3,11 +3,8 @@
 
 import unittest
 import datetime
-from fix_path import fix_sys_path
 
-fix_sys_path(__file__)
-
-from fileutils import parse_version
+from gluon.fileutils import parse_version
 
 
 class TestFileUtils(unittest.TestCase):
@@ -25,7 +22,3 @@ class TestFileUtils(unittest.TestCase):
         # Semantic Beta
         rtn = parse_version('Version 2.14.1-beta+timestamp.2016.03.21.22.35.26')
         self.assertEqual(rtn, (2, 14, 1, 'beta', datetime.datetime(2016, 3, 21, 22, 35, 26)))
-
-
-if __name__ == '__main__':
-    unittest.main()

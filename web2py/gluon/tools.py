@@ -11,12 +11,13 @@ Auth, Mail, PluginManager and various utilities
 """
 
 import base64
-try:
-    import cPickle as pickle
-except:
-    import pickle
+from functools import reduce
+from gluon._compat import pickle, thread, urllib2, Cookie, StringIO
+from gluon._compat import configparser, MIMEBase, MIMEMultipart, MIMEText
+from gluon._compat import Encoders, Charset, long, urllib_quote, iteritems
+from gluon._compat import to_bytes, to_native, add_charset
+from gluon._compat import charset_QP, basestring, unicodeT, to_unicode
 import datetime
-import thread
 import logging
 import sys
 import glob
@@ -27,25 +28,23 @@ import fnmatch
 import traceback
 import smtplib
 import urllib
-import urllib2
-import Cookie
-import cStringIO
-import ConfigParser
 import email.utils
 import random
 import hmac
 import hashlib
-from email import MIMEBase, MIMEMultipart, MIMEText, Encoders, Header, message_from_string, Charset
+import json
 
-from gluon.serializers import json_parser
+from email import message_from_string
+
 from gluon.contenttype import contenttype
 from gluon.storage import Storage, StorageList, Settings, Messages
 from gluon.utils import web2py_uuid, compare
 from gluon.fileutils import read_file, check_credentials
 from gluon import *
 from gluon.contrib.autolinks import expand_one
-from gluon.contrib.markmin.markmin2html import \
-    replace_at_urls, replace_autolinks, replace_components
+from gluon.contrib.markmin.markmin2html import replace_at_urls
+from gluon.contrib.markmin.markmin2html import replace_autolinks
+from gluon.contrib.markmin.markmin2html import replace_components
 from pydal.objects import Row, Set, Query
 
 import gluon.serializers as serializers
@@ -183,7 +182,7 @@ class Mail(object):
         in this way the can be referenced from the HTML as <img src="cid:attachment-0" /> etc.
     """
 
-    class Attachment(MIMEBase.MIMEBase):
+    class Attachment(MIMEBase):
         """
         Email attachment
 
@@ -246,16 +245,17 @@ class Mail(object):
                 if filename is None:
                     raise Exception('Missing attachment name')
                 payload = payload.read()
+            #FIXME PY3 can be used to_native?
             filename = filename.encode(encoding)
             if content_type is None:
                 content_type = contenttype(filename)
             self.my_filename = filename
             self.my_payload = payload
-            MIMEBase.MIMEBase.__init__(self, *content_type.split('/', 1))
+            MIMEBase.__init__(self, *content_type.split('/', 1))
             self.set_payload(payload)
-            self['Content-Disposition'] = 'attachment; filename="%s"' % filename
+            self['Content-Disposition'] = 'attachment; filename="%s"' % to_native(filename, encoding)
             if content_id is not None:
-                self['Content-Id'] = '<%s>' % content_id.encode(encoding)
+                self['Content-Id'] = '<%s>' % to_native(content_id, encoding)
             Encoders.encode_base64(self)
 
     def __init__(self, server=None, sender=None, login=None, tls=True):
@@ -410,11 +410,11 @@ class Mail(object):
         """
 
         # We don't want to use base64 encoding for unicode mail
-        Charset.add_charset('utf-8', Charset.QP, Charset.QP, 'utf-8')
+        add_charset('utf-8', charset_QP, charset_QP, 'utf-8')
 
         def encode_header(key):
             if [c for c in key if 32 > ord(c) or ord(c) > 127]:
-                return Header.Header(key.encode('utf-8'), 'utf-8')
+                return Header(key.encode('utf-8'), 'utf-8')
             else:
                 return key
 
@@ -433,12 +433,12 @@ class Mail(object):
 
         if not raw and attachments:
             # Use multipart/mixed if there is attachments
-            payload_in = MIMEMultipart.MIMEMultipart('mixed')
+            payload_in = MIMEMultipart('mixed')
         elif raw:
             # no encoding configuration for raw messages
             if not isinstance(message, basestring):
                 message = message.read()
-            if isinstance(message, unicode):
+            if isinstance(message, unicodeT):
                 text = message.encode('utf-8')
             elif not encoding == 'utf-8':
                 text = message.decode(encoding).encode('utf-8')
@@ -447,7 +447,7 @@ class Mail(object):
             # No charset passed to avoid transport encoding
             # NOTE: some unicode encoded strings will produce
             # unreadable mail contents.
-            payload_in = MIMEText.MIMEText(text)
+            payload_in = MIMEText(text)
         if to:
             if not isinstance(to, (list, tuple)):
                 to = [to]
@@ -476,14 +476,14 @@ class Mail(object):
             if text is not None:
                 if not isinstance(text, basestring):
                     text = text.read()
-                if isinstance(text, unicode):
+                if isinstance(text, unicodeT):
                     text = text.encode('utf-8')
                 elif not encoding == 'utf-8':
                     text = text.decode(encoding).encode('utf-8')
             if html is not None:
                 if not isinstance(html, basestring):
                     html = html.read()
-                if isinstance(html, unicode):
+                if isinstance(html, unicodeT):
                     html = html.encode('utf-8')
                 elif not encoding == 'utf-8':
                     html = html.decode(encoding).encode('utf-8')
@@ -491,15 +491,13 @@ class Mail(object):
             # Construct mime part only if needed
             if text is not None and html:
                 # We have text and html we need multipart/alternative
-                attachment = MIMEMultipart.MIMEMultipart('alternative')
-                attachment.attach(MIMEText.MIMEText(text, _charset='utf-8'))
-                attachment.attach(
-                    MIMEText.MIMEText(html, 'html', _charset='utf-8'))
+                attachment = MIMEMultipart('alternative')
+                attachment.attach(MIMEText(text, _charset='utf-8'))
+                attachment.attach(MIMEText(html, 'html', _charset='utf-8'))
             elif text is not None:
-                attachment = MIMEText.MIMEText(text, _charset='utf-8')
+                attachment = MIMEText(text, _charset='utf-8')
             elif html:
-                attachment = \
-                    MIMEText.MIMEText(html, 'html', _charset='utf-8')
+                attachment = MIMEText(html, 'html', _charset='utf-8')
 
             if attachments:
                 # If there is attachments put text and html into
@@ -565,21 +563,20 @@ class Mail(object):
                     c.op_sign(plain, sig, mode.DETACH)
                     sig.seek(0, 0)
                     # make it part of the email
-                    payload = \
-                        MIMEMultipart.MIMEMultipart('signed',
-                                                    boundary=None,
-                                                    _subparts=None,
-                                                    **dict(micalg="pgp-sha1",
-                                                           protocol="application/pgp-signature"))
+                    payload = MIMEMultipart('signed',
+                                            boundary=None,
+                                            _subparts=None,
+                                            **dict(micalg="pgp-sha1",
+                                                   protocol="application/pgp-signature"))
                     # insert the origin payload
                     payload.attach(payload_in)
                     # insert the detached signature
-                    p = MIMEBase.MIMEBase("application", 'pgp-signature')
+                    p = MIMEBase("application", 'pgp-signature')
                     p.set_payload(sig.read())
                     payload.attach(p)
                     # it's just a trick to handle the no encryption case
                     payload_in = payload
-                except errors.GPGMEError, ex:
+                except errors.GPGMEError as ex:
                     self.error = "GPG error: %s" % ex.getstring()
                     return False
             ############################################
@@ -610,17 +607,17 @@ class Mail(object):
                     c.op_encrypt(recipients, 1, plain, cipher)
                     cipher.seek(0, 0)
                     # make it a part of the email
-                    payload = MIMEMultipart.MIMEMultipart('encrypted',
-                                                          boundary=None,
-                                                          _subparts=None,
-                                                          **dict(protocol="application/pgp-encrypted"))
-                    p = MIMEBase.MIMEBase("application", 'pgp-encrypted')
+                    payload = MIMEMultipart('encrypted',
+                                            boundary=None,
+                                            _subparts=None,
+                                            **dict(protocol="application/pgp-encrypted"))
+                    p = MIMEBase("application", 'pgp-encrypted')
                     p.set_payload("Version: 1\r\n")
                     payload.attach(p)
-                    p = MIMEBase.MIMEBase("application", 'octet-stream')
+                    p = MIMEBase("application", 'octet-stream')
                     p.set_payload(cipher.read())
                     payload.attach(p)
-                except errors.GPGMEError, ex:
+                except errors.GPGMEError as ex:
                     self.error = "GPG error: %s" % ex.getstring()
                     return False
         #######################################################
@@ -647,7 +644,7 @@ class Mail(object):
             # need m2crypto
             try:
                 from M2Crypto import BIO, SMIME, X509
-            except Exception, e:
+            except Exception as e:
                 self.error = "Can't load M2Crypto module"
                 return False
             msg_bio = BIO.MemoryBuffer(payload_in.as_string())
@@ -672,7 +669,7 @@ class Mail(object):
                             else X509.load_cert_string(x509_sign_chainfile)
                         sk.push(chain)
                         s.set_x509_stack(sk)
-                except Exception, e:
+                except Exception as e:
                     self.error = "Something went wrong on certificate / private key loading: <%s>" % str(e)
                     return False
                 try:
@@ -685,7 +682,7 @@ class Mail(object):
                     p7 = s.sign(msg_bio, flags=flags)
                     msg_bio = BIO.MemoryBuffer(payload_in.as_string(
                     ))  # Recreate coz sign() has consumed it.
-                except Exception, e:
+                except Exception as e:
                     self.error = "Something went wrong on signing: <%s> %s" % (
                         str(e), str(flags))
                     return False
@@ -712,7 +709,7 @@ class Mail(object):
                     else:
                         tmp_bio.write(payload_in.as_string())
                     p7 = s.encrypt(tmp_bio)
-                except Exception, e:
+                except Exception as e:
                     self.error = "Something went wrong on encrypting: <%s>" % str(e)
                     return False
 
@@ -734,29 +731,29 @@ class Mail(object):
             payload = payload_in
 
         if from_address:
-            payload['From'] = encoded_or_raw(from_address.decode(encoding))
+            payload['From'] = encoded_or_raw(to_unicode(from_address, encoding))
         else:
-            payload['From'] = encoded_or_raw(sender.decode(encoding))
+            payload['From'] = encoded_or_raw(to_unicode(sender, encoding))
         origTo = to[:]
         if to:
-            payload['To'] = encoded_or_raw(', '.join(to).decode(encoding))
+            payload['To'] = encoded_or_raw(to_unicode(', '.join(to), encoding))
         if reply_to:
-            payload['Reply-To'] = encoded_or_raw(reply_to.decode(encoding))
+            payload['Reply-To'] = encoded_or_raw(to_unicode(reply_to, encoding))
         if cc:
-            payload['Cc'] = encoded_or_raw(', '.join(cc).decode(encoding))
+            payload['Cc'] = encoded_or_raw(to_unicode(', '.join(cc), encoding))
             to.extend(cc)
         if bcc:
             to.extend(bcc)
-        payload['Subject'] = encoded_or_raw(subject.decode(encoding))
+        payload['Subject'] = encoded_or_raw(to_unicode(subject, encoding))
         payload['Date'] = email.utils.formatdate()
-        for k, v in headers.iteritems():
-            payload[k] = encoded_or_raw(v.decode(encoding))
+        for k, v in iteritems(headers):
+            payload[k] = encoded_or_raw(to_unicode(v, encoding))
         result = {}
         try:
             if self.settings.server == 'logging':
                 entry = 'email not sent\n%s\nFrom: %s\nTo: %s\nSubject: %s\n\n%s\n%s\n' % \
                     ('-' * 40, sender, ', '.join(to), subject, text or html, '-' * 40)
-                logger.warn(entry)
+                logger.warning(entry)
             elif self.settings.server.startswith('logging:'):
                 entry = 'email not sent\n%s\nFrom: %s\nTo: %s\nSubject: %s\n\n%s\n%s\n' % \
                     ('-' * 40, sender, ', '.join(to), subject, text or html, '-' * 40)
@@ -778,16 +775,16 @@ class Mail(object):
                 if attachments:
                     result = mail.send_mail(
                         sender=sender, to=origTo,
-                        subject=unicode(subject, encoding), body=unicode(text, encoding), html=html,
+                        subject=to_unicode(subject, encoding), body=to_unicode(text, encoding), html=html,
                         attachments=attachments, **xcc)
                 elif html and (not raw):
                     result = mail.send_mail(
                         sender=sender, to=origTo,
-                        subject=unicode(subject, encoding), body=unicode(text, encoding), html=html, **xcc)
+                        subject=to_unicode(subject, encoding), body=to_unicode(text, encoding), html=html, **xcc)
                 else:
                     result = mail.send_mail(
                         sender=sender, to=origTo,
-                        subject=unicode(subject, encoding), body=unicode(text, encoding), **xcc)
+                        subject=to_unicode(subject, encoding), body=to_unicode(text, encoding), **xcc)
             else:
                 smtp_args = self.settings.server.split(':')
                 kwargs = dict(timeout=self.settings.timeout)
@@ -804,8 +801,8 @@ class Mail(object):
                 result = server.sendmail(
                     sender, to, payload.as_string())
                 server.quit()
-        except Exception, e:
-            logger.warn('Mail.send failure:%s' % e)
+        except Exception as e:
+            logger.warning('Mail.send failure:%s' % e)
             self.result = result
             self.error = e
             return False
@@ -1043,7 +1040,7 @@ class Recaptcha2(DIV):
         content = httpresp.read()
         httpresp.close()
         try:
-            response_dict = json_parser.loads(content)
+            response_dict = json.loads(content)
         except:
             self.errors['captcha'] = self.error_message
             return False
@@ -1192,6 +1189,15 @@ class AuthJWT(object):
         def protected():
             return '%s$%s' % (request.now, auth.user_id)
 
+    To inject optional auth info into the action with JWT
+        @myjwt.allows_jwt()
+        def unprotected():
+            if auth.user:
+                return '%s$%s' % (request.now, auth.user_id)
+
+            return "No auth info!"
+
+
     """
 
     def __init__(self,
@@ -1226,9 +1232,9 @@ class AuthJWT(object):
         self.header_prefix = header_prefix
         self.jwt_add_header = jwt_add_header or {}
         base_header = {'alg': self.algorithm, 'typ': 'JWT'}
-        for k, v in self.jwt_add_header.iteritems():
+        for k, v in iteritems(self.jwt_add_header):
             base_header[k] = v
-        self.cached_b64h = self.jwt_b64e(json_parser.dumps(base_header))
+        self.cached_b64h = self.jwt_b64e(json.dumps(base_header))
         digestmod_mapping = {
             'HS256': hashlib.sha256,
             'HS384': hashlib.sha384,
@@ -1242,11 +1248,11 @@ class AuthJWT(object):
         self.additional_payload = additional_payload
         self.before_authorization = before_authorization
         self.max_header_length = max_header_length
+        self.recvd_token = None
 
     @staticmethod
     def jwt_b64e(string):
-        if isinstance(string, unicode):
-            string = string.encode('utf-8', 'strict')
+        string = to_bytes(string)
         return base64.urlsafe_b64encode(string).strip(b'=')
 
     @staticmethod
@@ -1255,47 +1261,44 @@ class AuthJWT(object):
         called with a unicode string).
         The result is also a bytestring.
         """
-        if isinstance(string, unicode):
-            string = string.encode('ascii', 'ignore')
-        return base64.urlsafe_b64decode(string + '=' * (-len(string) % 4))
+        string = to_bytes(string, 'ascii', 'ignore')
+        return base64.urlsafe_b64decode(string + b'=' * (-len(string) % 4))
 
     def generate_token(self, payload):
-        secret = self.secret_key
+        secret = to_bytes(self.secret_key)
         if self.salt:
             if callable(self.salt):
                 secret = "%s$%s" % (secret, self.salt(payload))
             else:
                 secret = "%s$%s" % (secret, self.salt)
-            if isinstance(secret, unicode):
+            if isinstance(secret, unicodeT):
                 secret = secret.encode('ascii', 'ignore')
         b64h = self.cached_b64h
         b64p = self.jwt_b64e(serializers.json(payload))
-        jbody = b64h + '.' + b64p
+        jbody = b64h + b'.' + b64p
         mauth = hmac.new(key=secret, msg=jbody, digestmod=self.digestmod)
         jsign = self.jwt_b64e(mauth.digest())
-        return jbody + '.' + jsign
+        return to_native(jbody + b'.' + jsign)
 
     def verify_signature(self, body, signature, secret):
         mauth = hmac.new(key=secret, msg=body, digestmod=self.digestmod)
         return compare(self.jwt_b64e(mauth.digest()), signature)
 
     def load_token(self, token):
-        if isinstance(token, unicode):
-            token = token.encode('utf-8', 'strict')
-        body, sig = token.rsplit('.', 1)
-        b64h, b64b = body.split('.', 1)
+        token = to_bytes(token, 'utf-8', 'strict')
+        body, sig = token.rsplit(b'.', 1)
+        b64h, b64b = body.split(b'.', 1)
         if b64h != self.cached_b64h:
             # header not the same
             raise HTTP(400, u'Invalid JWT Header')
         secret = self.secret_key
-        tokend = serializers.loads_json(self.jwt_b64d(b64b))
+        tokend = serializers.loads_json(to_native(self.jwt_b64d(b64b)))
         if self.salt:
             if callable(self.salt):
                 secret = "%s$%s" % (secret, self.salt(tokend))
             else:
                 secret = "%s$%s" % (secret, self.salt)
-            if isinstance(secret, unicode):
-                secret = secret.encode('ascii', 'ignore')
+        secret = to_bytes(secret, 'ascii', 'ignore')
         if not self.verify_signature(body, sig, secret):
             # signature verification failed
             raise HTTP(400, u'Token signature is invalid')
@@ -1358,17 +1361,18 @@ class AuthJWT(object):
                 payload.update(self.additional_payload)
         return payload
 
-    def jwt_token_manager(self):
+    def jwt_token_manager(self, token_param='_token'):
         """
         The part that issues (and refreshes) tokens.
         Used in a controller, given myjwt is the istantiated class, as
 
+            @myjwt.allow_jwt(required=False, verify_expiration=False)
             def api_auth():
                 return myjwt.jwt_token_manager()
 
         Then, a call to /app/c/api_auth with username and password
         returns a token, while /app/c/api_auth with the current token
-        issues another token
+        issues another token (expired, but within grace time)
         """
         request = current.request
         response = current.response
@@ -1377,10 +1381,14 @@ class AuthJWT(object):
         session.forget(response)
         valid_user = None
         ret = None
-        if request.vars.token:
+        token = None
+        try:
+            token = self.recvd_token or self.get_jwt_token_from_request(token_param)
+        except HTTP:
+            pass
+        if token:
             if not self.allow_refresh:
                 raise HTTP(403, u'Refreshing token is not allowed')
-            token = request.vars.token
             tokend = self.load_token(token)
             # verification can fail here
             refreshed = self.refresh_token(tokend)
@@ -1391,8 +1399,9 @@ class AuthJWT(object):
             valid_user = self.auth.login_bare(username, password)
         else:
             valid_user = self.auth.user
+            self.auth.login_user(valid_user)
         if valid_user:
-            payload = self.serialize_auth_session(current.session.auth)
+            payload = self.serialize_auth_session(session.auth)
             self.alter_payload(payload)
             ret = {'token': self.generate_token(payload)}
         elif ret is None:
@@ -1411,13 +1420,15 @@ class AuthJWT(object):
         self.auth.user_groups = tokend['user_groups']
         self.auth.hmac_key = tokend['hmac_key']
 
-    def allows_jwt(self, otherwise=None):
+    def get_jwt_token_from_request(self, token_param='_token'):
         """
-        The validator that checks for the header or the
-        _token var
+        The method that extracts and validates the token, either
+        from the header or the _token var
+
+        token_param: request.vars attribute with the token used only if the http authorization header is not present.
         """
-        request = current.request
-        token_in_header = request.env.http_authorization
+        token = None
+        token_in_header = current.request.env.http_authorization
         if token_in_header:
             parts = token_in_header.split()
             if parts[0].lower() != self.header_prefix.lower():
@@ -1428,12 +1439,50 @@ class AuthJWT(object):
                 raise HTTP(400, 'Invalid JWT header, token contains spaces')
             token = parts[1]
         else:
-            token = request.vars._token
-        if token and len(token) < self.max_header_length:
-            tokend = self.load_token(token)
-            self.inject_token(tokend)
-        return self.auth.requires(True, otherwise=otherwise)
+            token = current.request.vars.get(token_param)
 
+        self.recvd_token = token
+        return token
+
+    def allows_jwt(self, otherwise=None, required=True, verify_expiration=True, token_param='_token'):
+        """
+        The decorator that takes care of injecting auth info in the decorated action.
+        Works w/o resorting to session.
+
+        Args:
+
+            required: the token is mandatory (either in request.var._token or in the HTTP hearder Authorization Bearer)
+            verify_expiration: allows to bypass expiration check.  Useful to manage token renewal.
+            token_param: request.vars attribute with the token used only if the http authorization header is not present (default: "_token").
+
+        """
+        def decorator(action):
+            def f(*args, **kwargs):
+                try:
+                    token = self.get_jwt_token_from_request(token_param=token_param)
+                except HTTP as e:
+                    if required:
+                        raise e
+                    token = None
+                if token and len(token) < self.max_header_length:
+                    old_verify_expiration = self.verify_expiration
+                    try:
+                        self.verify_expiration = verify_expiration
+                        tokend = self.load_token(token)
+                    except ValueError:
+                        raise HTTP(400, 'Invalid JWT header, wrong token format')
+                    finally:
+                        self.verify_expiration = old_verify_expiration
+                    self.inject_token(tokend)
+
+                return action(*args, **kwargs)
+
+            f.__doc__ = action.__doc__
+            f.__name__ = action.__name__
+            f.__dict__.update(action.__dict__)
+            return f
+
+        return decorator
 
 class Auth(object):
 
@@ -1532,7 +1581,6 @@ class Auth(object):
         logged_out='Logged out',
         registration_successful='Registration successful',
         invalid_email='Invalid email',
-        unable_send_email='Unable to send email',
         invalid_login='Invalid login',
         invalid_user='Invalid user',
         invalid_password='Invalid password',
@@ -1786,7 +1834,7 @@ class Auth(object):
         # ## what happens after registration?
 
         settings = self.settings = Settings()
-        settings.update(Auth.default_settings)        
+        settings.update(Auth.default_settings)
         host = self.select_host(request.env.http_host, host_names)
         settings.update(
             cas_domains=[host],
@@ -1850,7 +1898,7 @@ class Auth(object):
                             'Please ',
                             A('login',
                               _href=self.settings.login_url +
-                                    ('?_next=' + urllib.quote(current.request.env.http_web2py_component_location))
+                                    ('?_next=' + urllib_quote(current.request.env.http_web2py_component_location))
                               if current.request.env.http_web2py_component_location else ''),
                             ' to view this content.',
                             _class='not-authorized alert alert-block'))
@@ -1869,15 +1917,24 @@ class Auth(object):
 
     def get_vars_next(self):
         next = current.request.vars._next
+        host = current.request.env.http_host
         if isinstance(next, (list, tuple)):
             next = next[0]
         if next and self.settings.prevent_open_redirect_attacks:
-            # Prevent an attacker from adding an arbitrary url after the
-            # _next variable in the request.
-            items = next.split('/')
-            if '//' in next and items[2] != current.request.env.http_host:
-                next = None
-        return next
+            return self.prevent_open_redirect(next, host)
+        return next or None
+
+    @staticmethod
+    def prevent_open_redirect(next, host):
+        # Prevent an attacker from adding an arbitrary url after the
+        # _next variable in the request.
+        if next:
+            parts = next.split('/')
+            if not ':' in parts[0]:
+                return next
+            elif len(parts)>2 and parts[0].endswith(':') and parts[1:3]==['', host]:
+                return next
+        return None
 
     def _get_user_id(self):
         """accessor for auth.user_id"""
@@ -1948,6 +2005,12 @@ class Auth(object):
                 return self.cas_validate(version=2, proxy=False)
             elif args(1) == self.settings.cas_actions['proxyvalidate']:
                 return self.cas_validate(version=2, proxy=True)
+            elif (args(1) == 'p3'
+                  and args(2) == self.settings.cas_actions['servicevalidate']):
+                return self.cas_validate(version=3, proxy=False)
+            elif (args(1) == 'p3'
+                  and args(2) == self.settings.cas_actions['proxyvalidate']):
+                return self.cas_validate(version=3, proxy=True)
             elif args(1) == self.settings.cas_actions['logout']:
                 return self.logout(next=request.vars.service or DEFAULT)
         else:
@@ -1974,7 +2037,7 @@ class Auth(object):
         if URL() == action:
             next = ''
         else:
-            next = '?_next=' + urllib.quote(URL(args=request.args,
+            next = '?_next=' + urllib_quote(URL(args=request.args,
                                                 vars=request.get_vars))
         href = lambda function: \
             '%s/%s%s' % (action, function, next if referrer_actions is DEFAULT or function in referrer_actions else '')
@@ -1990,7 +2053,7 @@ class Auth(object):
         if self.user_id:  # User is logged in
             logout_next = self.settings.logout_next
             items.append({'name': T('Log Out'),
-                          'href': '%s/logout?_next=%s' % (action, urllib.quote(logout_next)),
+                          'href': '%s/logout?_next=%s' % (action, urllib_quote(logout_next)),
                           'icon': 'icon-off'})
             if 'profile' not in self.settings.actions_disabled:
                 items.append({'name': T('Profile'), 'href': href('profile'),
@@ -2636,7 +2699,8 @@ class Auth(object):
             delattr(user, 'password')
         else:
             user = Row(user)
-            for key, value in user.items():
+            for key in list(user.keys()):
+                value = user[key]
                 if callable(value) or key == 'password':
                     delattr(user, key)
         if self.settings.renew_session_onlogin:
@@ -2772,6 +2836,15 @@ class Auth(object):
         if success:
             if version == 1:
                 message = 'yes\n%s' % user[userfield]
+            elif version == 3:
+                username = user.get('username', user[userfield])
+                message = build_response(
+                    TAG['cas:authenticationSuccess'](
+                        TAG['cas:user'](username),
+                        TAG['cas:attributes'](
+                            *[TAG['cas:' + field.name](user[field.name])
+                              for field in self.table_user()
+                              if field.readable])))
             else:  # assume version 2
                 username = user.get('username', user[userfield])
                 message = build_response(
@@ -3359,7 +3432,9 @@ class Auth(object):
                 link = self.url(
                     self.settings.function, args=('verify_email', key), scheme=True)
                 d = dict(form.vars)
-                d.update(dict(key=key, link=link, username=form.vars[username]))
+                d.update(dict(key=key, link=link, username=form.vars[username],
+                              firstname=form.vars['firstname'],
+                              lastname=form.vars['lastname']))
                 if not (self.settings.mailer and self.settings.mailer.send(
                         to=form.vars.email,
                         subject=self.messages.verify_email_subject,
@@ -3508,8 +3583,8 @@ class Auth(object):
         password = ''
         specials = r'!#$*'
         for i in range(0, 3):
-            password += random.choice(string.lowercase)
-            password += random.choice(string.uppercase)
+            password += random.choice(string.ascii_lowercase)
+            password += random.choice(string.ascii_uppercase)
             password += random.choice(string.digits)
             password += random.choice(specials)
         return ''.join(random.sample(password, len(password)))
@@ -3577,7 +3652,7 @@ class Auth(object):
                                          message=self.messages.retrieve_password % dict(password=password)):
                 session.flash = self.messages.email_sent
             else:
-                session.flash = self.messages.unable_to_send_email
+                session.flash = self.messages.unable_send_email
             self.log_event(log, user)
             callback(onaccept, form)
             if not next:
@@ -3612,7 +3687,12 @@ class Auth(object):
                 key = request.args[-1]
             if key:
                 session._reset_password_key = key
-                redirect(self.url(args='confirm_registration'))
+                if next:
+                    redirect_vars = {'_next': next}
+                else:
+                    redirect_vars = {}
+                redirect(self.url(args='confirm_registration',
+                                  vars=redirect_vars))
             else:
                 key = session._reset_password_key
         else:
@@ -3874,7 +3954,7 @@ class Auth(object):
             if self.email_reset_password(user):
                 session.flash = self.messages.email_sent
             else:
-                session.flash = self.messages.unable_to_send_email
+                session.flash = self.messages.unable_send_email
             self.log_event(log, user)
             callback(onaccept, form)
             if not next:
@@ -3942,7 +4022,7 @@ class Auth(object):
         requires = table_user[passfield].requires
         if not isinstance(requires, (list, tuple)):
             requires = [requires]
-        requires = filter(lambda t: isinstance(t, CRYPT), requires)
+        requires = list(filter(lambda t: isinstance(t, CRYPT), requires))
         if requires:
             requires[0].min_length = 0
         form = SQLFORM.factory(
@@ -4228,7 +4308,7 @@ class Auth(object):
                             next = self.here()
                             current.session.flash = current.response.flash
                             return call_or_redirect(self.settings.on_failed_authentication,
-                                                    self.settings.login_url + '?_next=' + urllib.quote(next))
+                                                    self.settings.login_url + '?_next=' + urllib_quote(next))
 
                 if callable(condition):
                     flag = condition()
@@ -4383,6 +4463,10 @@ class Auth(object):
             group_id = self.id_group(group_id)  # interpret group_id as a role
         if not user_id and self.user:
             user_id = self.user.id
+        if not group_id:
+            raise ValueError('group_id not provided or invalid')
+        if not user_id:
+            raise ValueError('user_id not provided or invalid')
         membership = self.table_membership()
         db = membership._db
         record = db((membership.user_id == user_id) &
@@ -4712,7 +4796,19 @@ class Auth(object):
             self._wiki.automenu()
 
 
-class Crud(object):
+class Crud(object): # pragma: no cover
+
+    default_messages = dict(
+        submit_button = 'Submit',
+        delete_label = 'Check to delete',
+        record_created = 'Record Created',
+        record_updated = 'Record Updated',
+        record_deleted = 'Record Deleted',
+        update_log = 'Record %(id)s updated',
+        create_log = 'Record %(id)s created',
+        read_log = 'Record %(id)s read',
+        delete_log = 'Record %(id)s deleted',
+    )
 
     def url(self, f=None, args=None, vars=None):
         """
@@ -4762,17 +4858,7 @@ class Crud(object):
         settings.lock_keys = True
 
         messages = self.messages = Messages(current.T)
-        messages.submit_button = 'Submit'
-        messages.delete_label = 'Check to delete'
-        messages.record_created = 'Record Created'
-        messages.record_updated = 'Record Updated'
-        messages.record_deleted = 'Record Deleted'
-
-        messages.update_log = 'Record %(id)s updated'
-        messages.create_log = 'Record %(id)s created'
-        messages.read_log = 'Record %(id)s read'
-        messages.delete_log = 'Record %(id)s deleted'
-
+        messages.update(Crud.default_messages)
         messages.lock_keys = True
 
     def __call__(self):
@@ -4854,7 +4940,7 @@ class Crud(object):
         response = current.response
         session = current.session
         if request.extension == 'json' and request.vars.json:
-            request.vars.update(json_parser.loads(request.vars.json))
+            request.vars.update(json.loads(request.vars.json))
         if next is DEFAULT:
             next = request.get_vars._next \
                 or request.post_vars._next \
@@ -5246,7 +5332,7 @@ regex_geocode = \
 
 def geocode(address):
     try:
-        a = urllib.quote(address)
+        a = urllib_quote(address)
         txt = fetch('http://maps.googleapis.com/maps/api/geocode/xml?sensor=false&address=%s' % a)
         item = regex_geocode.search(txt)
         (la, lo) = (float(item.group('la')), float(item.group('lo')))
@@ -5260,16 +5346,16 @@ def reverse_geocode(lat, lng, lang=None):
     if not lang:
         lang = current.T.accepted_language
     try:
-        return json_parser.loads(fetch('http://maps.googleapis.com/maps/api/geocode/json?latlng=%(lat)s,%(lng)s&language=%(lang)s' % locals()))['results'][0]['formatted_address']
+        return json.loads(fetch('http://maps.googleapis.com/maps/api/geocode/json?latlng=%(lat)s,%(lng)s&language=%(lang)s' % locals()))['results'][0]['formatted_address']
     except:
         return ''
 
 
 def universal_caller(f, *a, **b):
-    c = f.func_code.co_argcount
-    n = f.func_code.co_varnames[:c]
+    c = f.__code__.co_argcount
+    n = f.__code__.co_varnames[:c]
 
-    defaults = f.func_defaults or []
+    defaults = f.__defaults__ or []
     pos_args = n[0:-len(defaults)]
     named_args = n[-len(defaults):]
 
@@ -5300,7 +5386,9 @@ def universal_caller(f, *a, **b):
 
 class Service(object):
 
-    def __init__(self, environment=None):
+    def __init__(self, environment=None, check_args=False):
+        self.check_args = check_args
+        
         self.run_procedures = {}
         self.csv_procedures = {}
         self.xml_procedures = {}
@@ -5350,7 +5438,7 @@ class Service(object):
                 wget http://..../app/default/call/csv/myfunction?a=3&b=4
 
         """
-        self.run_procedures[f.__name__] = f
+        self.csv_procedures[f.__name__] = f
         return f
 
     def xml(self, f):
@@ -5370,7 +5458,7 @@ class Service(object):
                 wget http://..../app/default/call/xml/myfunction?a=3&b=4
 
         """
-        self.run_procedures[f.__name__] = f
+        self.xml_procedures[f.__name__] = f
         return f
 
     def rss(self, f):
@@ -5557,7 +5645,7 @@ class Service(object):
         if not args:
             args = request.args
         if args and args[0] in self.run_procedures:
-            return str(universal_caller(self.run_procedures[args[0]],
+            return str(self.call_service_function(self.run_procedures[args[0]],
                                         *args[1:], **dict(request.vars)))
         self.error()
 
@@ -5569,18 +5657,18 @@ class Service(object):
             args = request.args
 
         def none_exception(value):
-            if isinstance(value, unicode):
+            if isinstance(value, unicodeT):
                 return value.encode('utf8')
             if hasattr(value, 'isoformat'):
                 return value.isoformat()[:19].replace('T', ' ')
             if value is None:
                 return '<NULL>'
             return value
-        if args and args[0] in self.run_procedures:
+        if args and args[0] in self.csv_procedures:
             import types
-            r = universal_caller(self.run_procedures[args[0]],
+            r = self.call_service_function(self.csv_procedures[args[0]],
                                  *args[1:], **dict(request.vars))
-            s = cStringIO.StringIO()
+            s = StringIO()
             if hasattr(r, 'export_to_csv_file'):
                 r.export_to_csv_file(s)
             elif r and not isinstance(r, types.GeneratorType) and isinstance(r[0], (dict, Storage)):
@@ -5604,8 +5692,8 @@ class Service(object):
         response.headers['Content-Type'] = 'text/xml'
         if not args:
             args = request.args
-        if args and args[0] in self.run_procedures:
-            s = universal_caller(self.run_procedures[args[0]],
+        if args and args[0] in self.xml_procedures:
+            s = self.call_service_function(self.xml_procedures[args[0]],
                                  *args[1:], **dict(request.vars))
             if hasattr(s, 'as_list'):
                 s = s.as_list()
@@ -5618,7 +5706,7 @@ class Service(object):
         if not args:
             args = request.args
         if args and args[0] in self.rss_procedures:
-            feed = universal_caller(self.rss_procedures[args[0]],
+            feed = self.call_service_function(self.rss_procedures[args[0]],
                                     *args[1:], **dict(request.vars))
         else:
             self.error()
@@ -5633,7 +5721,7 @@ class Service(object):
             args = request.args
         d = dict(request.vars)
         if args and args[0] in self.json_procedures:
-            s = universal_caller(self.json_procedures[args[0]], *args[1:], **d)
+            s = self.call_service_function(self.json_procedures[args[0]], *args[1:], **d)
             if hasattr(s, 'as_list'):
                 s = s.as_list()
             return response.json(s)
@@ -5674,7 +5762,7 @@ class Service(object):
         response = current.response
         response.headers['Content-Type'] = 'application/json; charset=utf-8'
         methods = self.jsonrpc_procedures
-        data = json_parser.loads(request.body.read())
+        data = json.loads(request.body.read())
         jsonrpc_2 = data.get('jsonrpc')
         if jsonrpc_2:  # hand over to version 2 of the protocol
             return self.serve_jsonrpc2(data)
@@ -5691,7 +5779,7 @@ class Service(object):
             if hasattr(s, 'as_list'):
                 s = s.as_list()
             return return_response(id, s)
-        except Service.JsonRpcException, e:
+        except Service.JsonRpcException as e:
             return return_error(id, e.code, e.info)
         except:
             etype, eval, etb = sys.exc_info()
@@ -5752,7 +5840,7 @@ class Service(object):
         if not data:
             response.headers['Content-Type'] = 'application/json; charset=utf-8'
             try:
-                data = json_parser.loads(request.body.read())
+                data = json.loads(request.body.read())
             except ValueError:  # decoding error in json lib
                 return return_error(None, -32700)
 
@@ -5772,7 +5860,7 @@ class Service(object):
 
         try:
             must_respond = validate(data)
-        except Service.JsonRpcException, e:
+        except Service.JsonRpcException as e:
             return return_error(None, e.code, e.info)
 
         id, method, params = data.get('id'), data['method'], data.get('params', '')
@@ -5789,9 +5877,9 @@ class Service(object):
                 return return_response(id, s)
             else:
                 return ''
-        except HTTP, e:
+        except HTTP as e:
             raise e
-        except Service.JsonRpcException, e:
+        except Service.JsonRpcException as e:
             return return_error(id, e.code, e.info)
         except:
             etype, eval, etb = sys.exc_info()
@@ -5853,7 +5941,7 @@ class Service(object):
             prefix='pys',
             documentation=documentation,
             ns=True)
-        for method, (function, returns, args, doc) in procedures.iteritems():
+        for method, (function, returns, args, doc) in iteritems(procedures):
             dispatcher.register_function(method, function, returns, args, doc)
         if request.env.request_method == 'POST':
             fault = {}
@@ -5966,8 +6054,15 @@ class Service(object):
 
     def error(self):
         raise HTTP(404, "Object does not exist")
-
-
+    
+    # we make this a method so that subclasses can override it if they want to do more specific argument-checking
+    # but the default implmentation is the simplest: just pass the arguments we got, with no checking
+    def call_service_function(self, f, *a, **b):
+        if self.check_args:
+            return universal_caller(f, *a, **b)
+        else:
+            return f(*a, **b)
+  
 def completion(callback):
     """
     Executes a task on completion of the called action.
@@ -6156,7 +6251,8 @@ class PluginManager(object):
 
 
 class Expose(object):
-    def __init__(self, base=None, basename=None, extensions=None, allow_download=True):
+    def __init__(self, base=None, basename=None, extensions=None,
+                 allow_download=True, follow_symlink_out=False):
         """
         Examples:
             Use as::
@@ -6174,10 +6270,20 @@ class Expose(object):
             extensions: an optional list of file extensions for filtering
                 displayed files: e.g. `['.py', '.jpg']`
             allow_download: whether to allow downloading selected files
+            follow_symlink_out: whether to follow symbolic links that points
+                points outside of `base`.
+                Warning: setting this to `True` might pose a security risk
+                         if you don't also have complete control over writing
+                         and file creation under `base`.
 
         """
-        current.session.forget()
-        base = base or os.path.join(current.request.folder, 'static')
+        # why would this not be callable? but otherwise tests do not pass
+        if current.session and callable(current.session.forget): current.session.forget()
+        self.follow_symlink_out = follow_symlink_out
+        self.base = self.normalize_path(
+            base or os.path.join(current.request.folder, 'static'))
+        self.basename = basename or current.request.function
+        self.base = base = os.path.realpath(base or os.path.join(current.request.folder, 'static'))
         basename = basename or current.request.function
         self.basename = basename
 
@@ -6185,21 +6291,26 @@ class Expose(object):
             self.args = [arg for arg in current.request.raw_args.split('/') if arg]
         else:
             self.args = [arg for arg in current.request.args if arg]
-        filename = os.path.join(base, *self.args)
+
+        filename = os.path.join(self.base, *self.args)
         if not os.path.exists(filename):
             raise HTTP(404, "FILE NOT FOUND")
-        if not os.path.normpath(filename).startswith(base):
+        if not self.in_base(filename):
             raise HTTP(401, "NOT AUTHORIZED")
         if allow_download and not os.path.isdir(filename):
             current.response.headers['Content-Type'] = contenttype(filename)
             raise HTTP(200, open(filename, 'rb'), **current.response.headers)
         self.path = path = os.path.join(filename, '*')
-        self.folders = [f[len(path) - 1:] for f in sorted(glob.glob(path))
-                        if os.path.isdir(f) and not self.isprivate(f)]
-        self.filenames = [f[len(path) - 1:] for f in sorted(glob.glob(path))
-                          if not os.path.isdir(f) and not self.isprivate(f)]
+        dirname_len = len(path) - 1
+        allowed = [f for f in sorted(glob.glob(path))
+                   if not any([self.isprivate(f), self.issymlink_out(f)])]
+        self.folders = [f[dirname_len:]
+                        for f in allowed if os.path.isdir(f)]
+        self.filenames = [f[dirname_len:]
+                          for f in allowed if not os.path.isdir(f)]
         if 'README' in self.filenames:
-            readme = open(os.path.join(filename, 'README')).read()
+            with open(os.path.join(filename, 'README')) as f:
+                readme = f.read()
             self.paragraph = MARKMIN(readme)
         else:
             self.paragraph = None
@@ -6223,6 +6334,31 @@ class Expose(object):
                         TABLE(*[TR(TD(A(folder, _href=URL(args=self.args + [folder]))))
                                 for folder in self.folders], **dict(_class="table")))
         return ''
+
+    @staticmethod
+    def __in_base(subdir, basedir, sep=os.path.sep):
+        """True if subdir/ is under basedir/"""
+        s = lambda f: '%s%s' % (f.rstrip(sep), sep) # f -> f/
+        # The trailing '/' is for the case of '/foobar' in_base of '/foo':
+        # - becase '/foobar'  starts with        '/foo'
+        # - but    '/foobar/' doesn't start with '/foo/'
+        return s(subdir).startswith(s(basedir))
+
+    def in_base(self, f):
+        """True if f/ is under self.base/
+        Where f ans slef.base are normalized paths
+        """
+        return self.__in_base(self.normalize_path(f), self.base)
+
+    def normalize_path(self, f):
+        if self.follow_symlink_out:
+            return os.path.normpath(f)
+        else:
+            return os.path.realpath(f)
+
+    def issymlink_out(self, f):
+        "True if f is a symlink and is pointing outside of self.base"
+        return os.path.islink(f) and not self.in_base(f)
 
     @staticmethod
     def isprivate(f):
@@ -6447,10 +6583,8 @@ class Wiki(object):
             'wiki_editor' not in auth.user_groups.values() and
                 self.settings.groups == auth.user_groups.values()):
             group = db.auth_group(role='wiki_editor')
-            if group:
-                gid = group.id
-            else:
-                db.auth_group.insert(role='wiki_editor')
+            gid = group.id if group else db.auth_group.insert(
+                role='wiki_editor')
             auth.add_membership(gid)
 
         settings.lock_keys = True
@@ -6937,7 +7071,7 @@ class Config(object):
         section,
         default_values={}
     ):
-        self.config = ConfigParser.ConfigParser(default_values)
+        self.config = configparser.ConfigParser(default_values)
         self.config.read(filename)
         if not self.config.has_section(section):
             self.config.add_section(section)
