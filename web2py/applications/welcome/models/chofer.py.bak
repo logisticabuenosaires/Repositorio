@@ -1,0 +1,28 @@
+# coding: utf8
+
+db.define_table("chofer",
+    Field("nombre",required=True),
+    Field("apellido",required=True),
+    Field('foto', 'upload'),
+    Field("dni",unique=True),
+    Field("fecha_nacimiento",'date'),
+    Field("direccion"),
+    Field("ciudad",db.Paises),
+    Field("provincia"),
+    Field("pais"),
+    Field("telefono"),
+    Field("mail"),
+    Field("categoria","string", writable=False, readable=False),
+    Field("nro_licencia","integer"),
+    Field("vencimiento", 'date'),
+    Field("fecha_alta","datetime", writable=False, readable=False, 
+    default=request.now),
+    )
+db.chofer.pais.requires=IS_IN_DB(db,db.Paises.id,'%(cod_pais)s)-%(Pais)s)-%(capital)s')
+db.chofer.nombre.requires=IS_NOT_EMPTY(error_message='coloque el nombre')    
+db.chofer.apellido.requires=IS_NOT_EMPTY(error_message='coloque el apellido')
+db.chofer.dni.requires=IS_NOT_EMPTY(error_message='debe colocar nº de dni'), IS_NOT_IN_DB(db, db.chofer.dni)
+db.chofer.direccion.requires=IS_NOT_EMPTY(error_message='coloque la direccion')
+db.chofer.ciudad.requires=IS_NOT_EMPTY(error_message='coloque la ciudad')
+db.chofer.direccion.requires=IS_NOT_EMPTY(error_message='coloque la direccion')
+db.chofer.categoria.requires = IS_IN_SET(['chofer', 'peon de carga', 'empleado mantenimiento'])

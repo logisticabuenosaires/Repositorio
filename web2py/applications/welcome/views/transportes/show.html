@@ -1,0 +1,26 @@
+{{extend 'layout_gestionar.html'}}
+
+
+
+<table>
+
+
+<table border ="1" >
+
+
+<TD WIDTH=25%> {{=IMG(_src=URL(r=request, c='default', f='download', args=images.foto),_width='400px')}}<br> </TD> 
+
+<TD>&nbsp &nbsp<font size=4><b><br>
+  
+<br>NUMERO DE PATENTE: {{=images.nro_patente}}</br>
+<br>NUMERO DE MOTOR: {{=images.nro_motor}}</b>
+<br>MODELO: {{=images.modelo}}</b>
+<br>KILOMETRO DE ADQUISICION: {{=images.odometro_adquisicion}}</b>
+<<br>MARCA: {{=images.marca}}</b>
+<br>TIPO DE TRANSPORTE: {{=images.tipo}}</b>
+<br>COMPAÑIA DE SEGURO: {{=images.seguro_compania}}</b>
+<br>CAPASIDAD DE CARGA: {{=images.capacidad_carga}}</div>
+</b></font></TD>
+
+</table>
+ {{ pass }}

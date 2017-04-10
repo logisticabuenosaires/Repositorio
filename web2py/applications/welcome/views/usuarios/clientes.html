@@ -1,0 +1,99 @@
+{{extend esqueleto}}
+
+{{if auth.has_membership (group_id=2):}}  <!-- Aca empiezan los clientes de ADMINISTRADOR -->
+
+<center> <h1> CLIENTES </h1> <br>
+</center>
+<table border="0" width="100%">
+<tr>
+    <th><center> Codigo </center></th>
+    <th><center> Nombre </center></th>
+    <th><center> Apellido </center></th>
+    <th><center> DNI </center></th>
+    <th><center> Localidad </center></th>
+    <th><center> Domicilio </center></th>
+    <th><center> Nro Domicilio </center></th>
+    <th><center> Opciones </center></th>
+</tr>
+{{for cliente in lista_clientes:}}
+<tr>
+    <td><center> {{=cliente.id}} </center></td>
+    <td><center> {{=cliente.first_name}} </center></td>
+    <td><center> {{=cliente.last_name}} </center></td>
+    <td><center> {{=cliente.dni}} </center></td>
+    <td><center> {{=cliente.localidad}} </center></td>
+    <td><center> {{=cliente.calle}} </center></td>
+    <td><center> {{=cliente.nro_calle}} </center></td>
+    <td><center> {{=A('Modificar', _href=URL(r=request, f='modificar_usuario', args=cliente.id))}}
+    </center><td>
+</tr>
+{{pass}}
+</table>
+<br>
+
+<!-- XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX -->
+
+{{elif auth.has_membership (group_id=5) or auth.has_membership (group_id=1):}}  <!-- Aca empiezan los clientes de DESPACHADOR y CHOFER-->
+
+<center> <h1> CLIENTES </h1>
+<hr>
+<h3>BUSCAR</h3>
+Escoja el tipo de busqueda que desea realizar
+</center>
+<table border="0" width="100%">
+<tr>
+    <th><center> 
+    <a href="{{=URL(request.application,'usuarios','dni')}}"> DNI </a>
+    </center></th>
+    <th><center>
+    <a href="{{=URL(request.application,'usuarios','nombre')}}"> Nombre </a>
+    </center></th>
+    <th><center>
+    <a href="{{=URL(request.application,'usuarios','apellido')}}"> Apellido </a>
+    </center></th>
+    <th><center>
+    <a href="{{=URL(request.application,'usuarios','localidad')}}"> Localidad </a>
+    </center></th>
+    <th><center>
+    <a href="{{=URL(request.application,'usuarios','calle')}}"> Calle </a>
+    </center></th>
+    <th><center>
+    <a href="{{=URL(request.application,'usuarios','telefono')}}"> Telefono </a>
+    </center></th>
+    <th><center>
+    <a href="{{=URL(request.application,'usuarios','email')}}"> E-Mail </a>
+    </center></th>
+    <th><center>
+    <a href="{{=URL(request.application,'usuarios','fecha_nacimiento')}}"> Fecha de nacimiento </a>
+    </center></th>
+</tr>
+</center>
+</table>
+<hr>
+<table border="0" width="100%">
+<tr>
+    <th><center> Codigo </center></th>
+    <th><center> Nombre </center></th>
+    <th><center> Apellido </center></th>
+    <th><center> DNI </center></th>
+    <th><center> Localidad </center></th>
+    <th><center> Domicilio </center></th>
+    <th><center> Nro Domicilio </center></th>
+</tr>
+{{for cliente in lista_clientes:}}
+<tr>
+    <td><center> {{=cliente.id}} </center></td>
+    <td><center> {{=cliente.first_name}} </center></td>
+    <td><center> {{=cliente.last_name}} </center></td>
+    <td><center> {{=cliente.dni}} </center></td>
+    <td><center> {{=cliente.localidad}} </center></td>
+    <td><center> {{=cliente.calle}} </center></td>
+    <td><center> {{=cliente.nro_calle}} </center></td>
+    </center><td>
+</tr>
+{{pass}}
+</table>
+<br>
+
+
+{{pass}} <!-- Aca terminan los clientes de cualquier tipo de usuario -->

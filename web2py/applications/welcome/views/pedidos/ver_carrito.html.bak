@@ -1,0 +1,9 @@
+{{extend 'layout.html'}}
+
+        {{ for o in opcion: }}
+                <tr>
+                    <td>+ {{= o.description }}</td>
+                    <td> ${{= o.price }}</td>
+                </tr>
+        {{ pass }}
+            </table>

@@ -1,0 +1,71 @@
+{{extend 'layout.html'}}
+{{import urllib}}
+
+<h1>{{=T('Ubicacion del cliente')}}</h1>
+
+   
+   
+   
+    
+<iframe width="300" height="300" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://ditu.google.com/maps?f=q&amp;source=s_q&amp;hl=es&amp;geocode=&amp;q=Aluar+Divisi%C3%B3n+Elaborados,+Buenos+Aires,+Argentina&amp;aq=1&amp;oq=aluar&amp;sll=35.88905,104.238281&amp;sspn=40.98885,86.572266&amp;brcurrent=3,0x0:0x0,0%3B5,0,0&amp;ie=UTF8&amp;hq=Aluar+Divisi%C3%B3n+Elaborados,&amp;hnear=Buenos+Aires,+Argentina&amp;t=m&amp;z=10&amp;output=embed"></iframe><br /><small><a href="https://ditu.google.com/maps?f=q&amp;source=embed&amp;hl=es&amp;geocode=&amp;q=Aluar+Divisi%C3%B3n+Elaborados,+Buenos+Aires,+Argentina&amp;aq=1&amp;oq=aluar&amp;sll=35.88905,104.238281&amp;sspn=40.98885,86.572266&amp;brcurrent=3,0x0:0x0,0%3B5,0,0&amp;ie=UTF8&amp;hq=Aluar+Divisi%C3%B3n+Elaborados,&amp;hnear=Buenos+Aires,+Argentina&amp;t=m&amp;z=10" style="color:#0000FF;text-align:left">Ver mapa más grande</a></small>
+       {{pass}}
+<iframe width="300" height="300" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://ditu.google.com/maps?f=d&amp;source=s_d&amp;saddr=Senguel,+Gonz%C3%A1lez+Catan,+Buenos+Aires,+Argentina&amp;daddr=Larrea,+Gonzalez+Catan&amp;hl=es&amp;geocode=FWKR7f0dHFuB_CmZEpR4ZMS8lTHkWxet7xJYBQ%3BFUu37f0di4yB_CFa2-ug_p4eyyn395IKQ8S8lTFa2-ug_p4eyw&amp;aq=&amp;sll=-34.821395,-59.49798&amp;sspn=1.334821,2.705383&amp;brcurrent=3,0x0:0x0,0%3B5,0,0&amp;mra=ls&amp;ie=UTF8&amp;t=m&amp;z=16&amp;output=embed"></iframe><br /><small><a href="https://ditu.google.com/maps?f=d&amp;source=embed&amp;saddr=Senguel,+Gonz%C3%A1lez+Catan,+Buenos+Aires,+Argentina&amp;daddr=Larrea,+Gonzalez+Catan&amp;hl=es&amp;geocode=FWKR7f0dHFuB_CmZEpR4ZMS8lTHkWxet7xJYBQ%3BFUu37f0di4yB_CFa2-ug_p4eyyn395IKQ8S8lTFa2-ug_p4eyw&amp;aq=&amp;sll=-34.821395,-59.49798&amp;sspn=1.334821,2.705383&amp;brcurrent=3,0x0:0x0,0%3B5,0,0&amp;mra=ls&amp;ie=UTF8&amp;t=m&amp;z=16" style="color:#0000FF;text-align:left">Ver mapa más grande</a></small>
+
+       {{pass}}
+
+<!--<p>{{=T('The map below shows the home location of all attendees who agreed to make their information public.')}}--->
+</p>
+
+  <script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key={{=googlemap_key}}" type="text/javascript"></script>
+    <script type="text/javascript">
+    //<![CDATA[
+    function load() {
+      if (GBrowserIsCompatible()) {
+        var map = new GMap2(document.getElementById("map"));
+        map.addControl(new GSmallMapControl());
+        map.addControl(new GMapTypeControl());
+        map.setCenter(new GLatLng({{=x0}},{{=y0}}), 2);
+        // Create a base icon for all of our markers that specifies the
+        // shadow, icon dimensions, etc.
+        var baseIcon = new GIcon();
+        baseIcon.shadow = "http://www.google.com/mapfiles/shadow50.png";
+        baseIcon.iconSize = new GSize(20, 34);
+        baseIcon.shadowSize = new GSize(37, 34);
+        baseIcon.iconAnchor = new GPoint(9, 34);
+        baseIcon.infoWindowAnchor = new GPoint(9, 2);
+        baseIcon.infoShadowAnchor = new GPoint(18, 14);
+        var blueIcon = new GIcon();
+        blueIcon.image = "http://www.google.com/intl/en_us/mapfiles/ms/micons/blue-dot.png";
+        blueIcon.shadow = "http://www.google.com/mapfiles/shadow50.png";
+        blueIcon.iconSize = new GSize(37, 34);
+        blueIcon.shadowSize = new GSize(37, 34);
+        blueIcon.iconAnchor = new GPoint(9, 34);
+        blueIcon.infoWindowAnchor = new GPoint(9, 2);
+        blueIcon.infoShadowAnchor = new GPoint(18, 14);
+
+        function createMarker(point, i, message) {
+           // Set up our GMarkerOptions object
+           if(i==0) markerOptions = { icon:blueIcon };
+           else markerOptions= {}
+           var marker = new GMarker(point, markerOptions);
+           GEvent.addListener(marker, "click", function() {
+             marker.openInfoWindowHtml(message);
+           });
+           return marker;
+        }
+        {{for row in rows:}}{{if row.latitude and row.longitude:}}
+          var point = new GLatLng({{=row.latitude}},{{=row.longitude}});
+          map.addOverlay(createMarker(point, 0, "{{=row.include_in_delegate_listing and ( row.first_name+' '+row.last_name).replace('"',"'") or ''}}"));
+        {{pass}}{{pass}}
+
+     }
+    }
+    //]]>
+    </script>
+<center>
+    <div id="map" style="width: 800px; height: 400px"></div>
+    <script>load();</script>
+</center>
+        {{pass}}
+{{=f}}
+        {{pass}}

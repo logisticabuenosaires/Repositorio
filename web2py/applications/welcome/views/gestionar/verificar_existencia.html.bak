@@ -1,0 +1,6 @@
+{{extend 'layout.html'}}
+<h1>Esta es la plantilla gestionar/verificar_existencia.html</h1>
+
+
+<ul>{{=form}}</ul>
+<ul>{{=art}}</ul>

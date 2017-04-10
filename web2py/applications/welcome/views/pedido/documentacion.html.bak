@@ -1,0 +1,3 @@
+{{extend 'layout_pedido.html'}}
+<h1>Esta es la plantilla pedido/documentacion.html</h1>
+{{=BEAUTIFY(response._vars)}}

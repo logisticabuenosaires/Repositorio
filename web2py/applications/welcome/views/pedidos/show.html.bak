@@ -1,0 +1,20 @@
+{{extend 'layout_productos.html'}}
+
+<table>
+
+
+<table border ="1" >
+
+<TD WIDTH=25%> {{=IMG(_src=URL(r=request, c='default', f='download', args=images.imagen),_width='400px')}}<br> </TD> 
+
+<TD>&nbsp &nbsp<font size=4><b><br>
+<br>CLIENTE: {{=nombre}}</br>
+<br>DETALLE: {{=images.Detalle_Articulo}}</br>
+<br>PRECIO: {{=images.precio_Venta_Articulo}}</br>
+
+{{=product_form}} 
+
+</b></font></TD>
+
+</table>
+ {{ pass }}

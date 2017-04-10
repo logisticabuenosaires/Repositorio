@@ -1,0 +1,31 @@
+{{extend 'layout_administrador.html'}}
+<center>
+<h1> SECTOR DE ALTAS</h1>
+<center> {{=IMG(_src=URL(c='static', f='images/HPC.jpg'), _alt='HPC.jpg')}}  </center> 
+<font size=3 color=red><b> seleccione: </font><font size=2> articulos,proveedor, clientes </b></font>
+</cente>
+
+<left>
+<TABLE BORDER="0" >
+<TR>
+   <TD>
+       <a href="{{=URL(request.application,'altas','articulos')}}"> {{=IMG(_src=URL(c='static', f='images/nav/a1.jpg'))}} </a>
+   </TD>
+
+   <TD>
+ <td align="center" width="300" height="187" border="1" ><b><a href="{{=URL(request.application,'altas','Altas_chofer')}}"> {{=IMG(_src=URL(c='static', f='images/nav/vet4.png'))}} </a>
+   </TD>
+
+   <TD>
+<a   href="{{=URL( request.application,'altas','alta_cliente')}}"> {{=IMG(_src=URL(c='static', f='images/nav/c1.jpg'))}} </a>
+ 
+ 
+   </TD>
+   <TD>
+<a   href="{{=URL( request.application,'altas','altas_tranporte')}}"> {{=IMG(_src=URL(c='static', f='images/nav/vet2.png'))}} </a>
+ 
+ 
+   </TD>
+</TR>
+</TABLE>
+</left>

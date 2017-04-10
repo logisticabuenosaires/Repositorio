@@ -1,0 +1,60 @@
+{{extend 'layout.html'}}
+<center><h3>PEDIDOS A COMPLETAR</h3>
+<table border="0" width="100%">
+<tr>
+    <th><center> Codigo </center></th>
+    <th><center> Fecha del pedido </center></th>
+    <th><center> Articulo </center></th>
+    <th><center> Localidad de destino </center></th>
+    <th><center> Estado del pedido </center></th>
+    <th><center> Opciones </center></th>
+</tr>
+{{for pedido in lista_pedidos_incompletos:}}
+<tr>
+<tr>
+    <td><center> {{=pedido.id}} </center></td>
+    <td><center> {{=pedido.fecha_de_pedido}} </center></td>
+    <td><center> {{=pedido.product}} </center></td>
+    <td><center> {{=pedido.shipping_city}} </center></td>
+    <td><center> {{=pedido.estado_pedido}} </center></td>
+    <td><center>
+    {{if pedido.estado_pedido!='Realizado':}}
+    {{=A('Modificar', _href=URL(r=request, f='modificar_pedido', args=pedido.id))}} - 
+    {{pass}}
+    {{=A('Imprimir', _href=URL(r=request, f='imprimir_pedido', args=pedido.id), _target="_new")}}
+    </center></td>
+</tr>
+{{pass}}
+</tr>
+{{pass}}
+{{pass}}
+</table>
+<hr>
+<center><h3>PEDIDOS COMPLETOS</h3>
+<table border="0" width="100%">
+<tr>
+    <th><center> Codigo </center></th>
+    <th><center> Fecha del pedido </center></th>
+    <th><center> Articulo </center></th>
+    <th><center> Localidad de destino </center></th>
+    <th><center> Estado del pedido </center></th>
+    <th><center> Opciones </center></th>
+</tr>
+{{for pedido in lista_pedidos:}}
+<tr>
+    <td><center> {{=pedido.id}} </center></td>
+    <td><center> {{=pedido.fecha_de_pedido}} </center></td>
+    <td><center> {{=pedido.product}} </center></td>
+    <td><center> {{=pedido.shipping_city}} </center></td>
+    <td><center> {{=pedido.estado_pedido}} </center></td>
+    <td><center>
+    {{if pedido.estado_pedido!='Realizado':}}
+    {{=A('Modificar', _href=URL(r=request, f='modificar_pedido', args=pedido.id))}} - 
+    {{pass}}
+    {{=A('Imprimir', _href=URL(r=request, f='imprimir_pedido', args=pedido.id), _target="_new")}}
+    </center></td>
+</tr>
+{{pass}}
+</table>
+
+<!-- XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX -->

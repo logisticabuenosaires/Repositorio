@@ -1,0 +1,3 @@
+{{extend 'layout_pedido.html'}}
+<p>Thank you for your order, this is your invoice code</p>
+<h2>{{=invoice}}</h2>

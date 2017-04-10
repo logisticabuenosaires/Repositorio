@@ -1,0 +1,25 @@
+{{extend 'layout_pedido.html'}}
+<h2>My Orders</h2>
+<table>
+   <tr>
+   <th>N° FACTURA</th>
+   <th>FECHA Y HORA</th>
+   <th>DETALLE DEL ARTICULO</th>
+   <th>PRECIO DEL ARTICULO</th>
+   <th>CANTIDAD</th>
+   <th>TOTAL</th>
+   <th>ESTADO ENVIO</th>
+   </tr>
+{{for order in orders:}}
+   <tr>
+     <td>{{ =order.invoice}}</td>
+     <td>{{ =order.created_on}}</td>
+
+
+     <td>{{ =order.quantity}}</td>
+
+     <td>{{ =order.shipped and order.tracking_number}}</td>
+   </tr>   
+{{pass}}
+{{pass}}
+</table>

@@ -1,0 +1,64 @@
+# coding: utf8
+# try something like
+def index(): return dict(message="hello from Generar_guia_de_carga.py")
+
+def armar_rutas():
+    form=SQLFORM(db.Armado_de_rutas, submit_button='Grabar')
+    if form.accepts(request.vars, session):
+        response.flash = "Compra agregada"
+    elif form.errors:
+        response.flash = "Hubo errores"
+    else:
+        response.flash = "Complete formulario" #este else es por si dieron aceptar sin cargar ningun dato
+    return dict (ruta=form)
+def cargar_prv():
+    form=SQLFORM(db.provincia, submit_button='Aceptar')
+    if form.accepts(request.vars, session):
+        response.flash = "provincia agregado"
+    elif form.errors:
+        response.flash = "Hubo errores"
+    else:
+        response.flash = "Complete formulario"
+    return dict (form=form)
+def cargar_av():
+    form=SQLFORM(db.Avenida_principal, submit_button='Aceptar')
+    if form.accepts(request.vars, session):
+        response.flash = "Avenidas agregado"
+    elif form.errors:
+        response.flash = "Hubo errores"
+    else:
+        response.flash = "Complete formulario"
+    return dict (form=form)
+def cargar_ps():
+    form=SQLFORM(rutas.Paises, submit_button='Aceptar')
+    if form.accepts(request.vars, session):
+        response.flash = "Paises agregado"
+    elif form.errors:
+        response.flash = "Hubo errores"
+    else:
+        response.flash = "Complete formulario"
+    return dict (form=form)
+
+def cargar_cal():
+    form=SQLFORM(db.entre_calles, submit_button='Aceptar')
+    if form.accepts(request.vars, session):
+        response.flash = "calles agregado"
+    elif form.errors:
+        response.flash = "Hubo errores"
+    else:
+        response.flash = "Complete formulario"
+    return dict (form=form)
+####################################################
+@cache(request.env.path_info,time_expire=60*5,cache_model=cache.ram)
+def mapas():
+    rows=db(db.lista_clientes.id>0).select(
+            db.lista_clientes.user_id,
+            db.lista_clientes.latitude,
+            db.lista_clientes.longitude)
+ #           db.auth_user.personal_home_page,
+  #          db.auth_user.include_in_delegate_listing)
+    x0,y0=CONFERENCE_COORDS
+    d = dict(googlemap_key=GOOGLEMAP_KEY,x0=x0,y0=y0,rows=rows)
+    form=SQLFORM(db.Armado_de_rutas, submit_button='Grabar')
+
+    return response.render(d,f=form)

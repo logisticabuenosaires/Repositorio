@@ -1,0 +1,456 @@
+# -*- coding: utf-8 -*- 
+
+
+
+#########################################################################
+## This scaffolding model makes your app work on Google App Engine too
+#########################################################################
+
+if request.env.web2py_runtime_gae:            # if running on Google App Engine
+    db = DAL('gae')                           # connect to Google BigTable
+    session.connect(request, response, db = db) # and store sessions and tickets there
+    ### or use the following lines to store sessions in Memcache
+    # from gluon.contrib.memdb import MEMDB
+    # from google.appengine.api.memcache import Client
+    # session.connect(request, response, db = MEMDB(Client()))
+else:                                         # else use a normal relational database
+    db = DAL('sqlite://storage.sqlite')       # if not, use SQLite or other DB
+## if no need for session
+# session.forget()
+
+#########################################################################
+## Here is sample code if you need for 
+## - email capabilities
+## - authentication (registration, login, logout, ... )
+## - authorization (role based authorization)
+## - services (xml, csv, json, xmlrpc, jsonrpc, amf, rss)
+## - crud actions
+## (more options discussed in gluon/tools.py)
+#########################################################################
+
+from gluon.tools import *
+mail = Mail()                                  # mailer
+auth = Auth(globals(),db)                      # authentication/authorization
+crud = Crud(globals(),db)                      # for CRUD helpers using auth
+service = Service(globals())                   # for json, xml, jsonrpc, xmlrpc, amfrpc
+plugins = PluginManager()
+
+###########################################################################################################
+# TABLA "auth_user" --> es la tabla de usuarios
+
+db.define_table(
+    auth.settings.table_user_name,
+    Field('first_name', length=128, default='',label=T('Nombre')),
+    Field('last_name', length=128, default='',label=T('Apellido')),
+    Field('email', length=128, default='', unique=True,label=T('E-Mail')),
+    Field('password', 'password', length=512,readable=False, label='Contraseña'),
+    Field("dni",label=T('DNI')),
+    Field('cod_cli','string',required=True,label=T('CODIGO DE CLIENTES')),
+    Field('fecha_alta', 'date', default=request.now.date,
+          readable=True, writable=False),
+    Field('CUIT_CLIENTES',"string", length=13,required=True,label=T('N° CUIT DEL CLIENTES')),
+    Field('tipo_client_responsable','string',
+    requires=IS_IN_SET([ 'IVA', 'EXENTO','NORESPONSABLE','MONOTRIBUTISTA']),required=True,label=T('TIPO DE RESP.INSC')),
+    Field('TIPO_EMPRESA',requires=IS_IN_SET([ 'PRODUCCION', 'COMERCIAL','SERVICIOS'])),
+    Field("fecha_nacimiento", 'date',label=T('Fecha de nac.')),
+#    Field("ciudad",label=T('Localidad')),
+#    Field("calle",label=T('Calle')),
+#    Field("nro_calle", 'integer',label=T('Nro de calle')),
+#    Field("entrecalle1",label=T('Entrecalle 1')),
+#    Field("entrecalle2",label=T('Entrecalle 2')),
+    Field("telefono",label=T('Telefono')),
+    Field('registration_key', length=512,
+          writable=False, readable=False, default='',label=T('Clave de registracion')),
+    Field('reset_password_key', length=512,
+          writable=False, readable=False, default='',label=T('Clave de contraseña de restablecimiento')),
+    Field('registration_id', length=512,
+          writable=False, readable=False, default='',label=T('ID de registracion'))
+          )
+          
+# VALIDADORES "localidad"
+usuario = db[auth.settings.table_user_name] # Con esto se abrevia todo en "usuario"
+
+usuario.first_name.requires=IS_NOT_EMPTY(error_message='Falta ingresar nombre')
+
+usuario.last_name.requires=IS_NOT_EMPTY(error_message='Falta ingresar apellido')
+
+
+#usuario.password.requires = [IS_STRONG(min=4, special=2, upper=20), CRYPT()]
+usuario.password.requires=IS_NOT_EMPTY(error_message='Falta ingresar contraseña')
+
+usuario.email.requires = [
+  IS_EMAIL(error_message=auth.messages.invalid_email),
+  IS_NOT_IN_DB(db, usuario.email)]
+  
+usuario.dni.lenght=8
+usuario.dni.requires=IS_NOT_IN_DB(db, 'auth_user.dni')  
+usuario.dni.requires=IS_INT_IN_RANGE(10000000, 100000001, error_message=('Falta ingresar el DNI o lo ingreso mal'))
+  
+usuario.fecha_nacimiento.requires=IS_NOT_EMPTY(error_message='Falta ingresar fecha de nacimiento')  
+  
+#usuario.ciudad.requires=IS_IN_DB(db,'ciudad.nombre_localidad')
+
+#usuario.calle.requires=IS_IN_DB(db,'calle.nombre_calle')
+
+#usuario.nro_calle.requires=IS_NOT_EMPTY(error_message='El nro de calle no puede estar vacio')
+#usuario.nro_calle.requires=IS_INT_IN_RANGE(1, 100001)
+
+##usuario.entrecalle1.requires=IS_IN_DB(db,'calle.nombre_calle')
+#usuario.entrecalle1.requires=IS_NOT_EMPTY(error_message='Falta ingresar entrecalle')
+
+##usuario.entrecalle2.requires=IS_IN_DB(db,'calle.nombre_calle')
+#usuario.entrecalle2.requires=IS_NOT_EMPTY(error_message='Falta ingresar entrecalle')
+
+###########################################################################################################
+
+mail.settings.server = 'logging' or 'smtp.gmail.com:587'  # your SMTP server
+mail.settings.sender = 'user@gmail.com'         # your email
+mail.settings.login = 'username:password'      # your credentials or None
+
+auth.settings.hmac_key = 'sha512:270d9ae1-e317-4100-bfd8-c7bd255e3a9c'   # before define_tables()
+auth.define_tables()                           # creates all needed tables
+auth.settings.mailer = mail                    # for user email verification
+auth.settings.registration_requires_verification = False
+auth.settings.registration_requires_approval = False
+auth.settings.reset_password_requires_verification = True
+
+
+
+auth.settings.create_user_groups = False
+
+##################################################
+# Esto asigna membrecia de CLIENTE a todos los que se registren
+
+def dar_permiso(form):
+    auth.add_membership(3, auth.user_id) 
+
+auth.settings.register_onaccept = dar_permiso
+
+##################################################
+
+
+#########################################################################
+# MENSAJES
+#########################################################################
+
+auth.messages.submit_button = 'Aceptar' 
+auth.messages.verify_password = 'Reingrese su contraseña' 
+auth.messages.delete_label = 'De verificación para eliminar:' 
+auth.messages.function_disabled = 'Función desactivada' 
+auth.messages.access_denied = 'Privilegios insuficientes' 
+auth.messages.registration_verifying = 'El registro necesita ser verificado' 
+auth.messages.registration_pending = 'El registro todavia no fue aprobado' 
+auth.messages.login_disabled = 'Login desactivado por el administrador' 
+auth.messages.logged_in = 'Logueado' 
+auth.messages.email_sent = 'E-mail enviado' 
+auth.messages.unable_to_send_email = 'No se puede enviar el e-mail' 
+auth.messages.email_verified = 'E-mail verificado' 
+auth.messages.logged_out = 'Deslogueado'
+auth.messages.registration_successful = 'Registracion satisfactoria' 
+auth.messages.invalid_email = 'E-mail invalido' 
+auth.messages.unable_send_email = 'No se puede enviar e-mail' 
+auth.messages.invalid_login = 'Login invalido' 
+auth.messages.invalid_user = 'Usuario invalido' 
+auth.messages.invalid_password = 'Contraseña invalida' 
+auth.messages.is_empty = "No puede estar vacio" 
+auth.messages.mismatched_password = "Los campos de contraseña no coinciden" 
+auth.messages.verify_email = 'Haga clic en el enlace http://'+request.env.http_host+URL(r=request,c='default',f='user',args=['verify_email'])+'/%(key)s para verificar su e-mail' 
+auth.messages.verify_email_subject = 'E-mail de verificacion' 
+auth.messages.username_sent = 'Su nombre de usuario fue enviado por e-mail' 
+auth.messages.new_password_sent = 'Una nueva contraseña fue enviada por e-mail' 
+auth.messages.password_changed = 'Contraseña cambiada' 
+auth.messages.retrieve_username = 'Su nombre de usuario es: %(username)s' 
+auth.messages.retrieve_username_subject = 'Recuperar nombre de usuario' 
+auth.messages.retrieve_password = 'Su contraseña es: %(password)s' 
+auth.messages.retrieve_password_subject = 'Recuperar contraseña' 
+auth.messages.reset_password = 'Haga clic en el enlace http://'+request.env.http_host+URL(r=request,c='default',f='user',args=['reset_password'])+'/%(key)s para restablecer la contraseña'
+auth.messages.reset_password_subject = 'Restablecer contraseña' 
+auth.messages.invalid_reset_password = 'Contraseña de restablecimiento invalida' 
+auth.messages.profile_updated = 'Perfil actualizado' 
+auth.messages.new_password = 'Nueva contraseña' 
+auth.messages.old_password = 'Contraseña anterior' 
+auth.messages.group_description = 'Grupo asignado al usuario %(id)s' 
+auth.messages.register_log = 'Usuario %(id)s registrado' 
+auth.messages.login_log = 'Usuario %(id)s logueado' 
+auth.messages.logout_log = 'Usuario %(id)s Deslogueado' 
+auth.messages.profile_log = 'Perfil del usuario %(id)s actualizado' 
+auth.messages.verify_email_log = 'E-mail de verificacion enviado al usuario %(id)s' 
+auth.messages.retrieve_username_log = 'Nombre de usuario de %(id)s recuperado' 
+auth.messages.retrieve_password_log = 'Contraseña de %(id)s recuperada' 
+auth.messages.reset_password_log = 'Contraseña de %(id)s restablecida' 
+auth.messages.change_password_log = 'Contraseña de %(id)s modificada' 
+auth.messages.add_group_log = 'Grupo %(group_id)s creado' 
+auth.messages.del_group_log = 'Grupo %(group_id)s eliminado' 
+auth.messages.add_membership_log = None 
+auth.messages.del_membership_log = None 
+auth.messages.has_membership_log = None 
+auth.messages.add_permission_log = None 
+auth.messages.del_permission_log = None 
+auth.messages.has_permission_log = None 
+auth.messages.label_first_name = 'Nombre' 
+auth.messages.label_last_name = 'Apellido' 
+auth.messages.label_username = 'Nombre de usuario' 
+auth.messages.label_email = 'E-mail' 
+auth.messages.label_password = 'Contraseña'
+auth.messages.label_registration_key = 'Clave de registracion' 
+auth.messages.label_reset_password_key = 'Clave de restablecimiento de contraseña' 
+auth.messages.label_registration_id = 'ID del registro' 
+auth.messages.label_role = 'Rol' 
+auth.messages.label_description = 'Descripcion' 
+auth.messages.label_user_id = 'ID del usuario' 
+auth.messages.label_group_id = 'ID del grupo' 
+auth.messages.label_name = 'Nombre' 
+auth.messages.label_table_name = 'Nombre de la tabla' 
+auth.messages.label_record_id = 'ID de registro' 
+auth.messages.label_time_stamp = 'Marca de tiempo' 
+auth.messages.label_client_ip = 'IP del cliente' 
+auth.messages.label_origin = 'Origen' 
+auth.messages.label_remember_me = "Recordarme (por 30 dias)" 
+
+#########################################################################
+
+crud.settings.auth = None                      # =auth to enforce authorization on crud
+
+#########################################################################
+## Define your tables below (or better in another model file) for example
+##
+## >>> db.define_table('mytable',Field('myfield','string'))
+##
+## Fields can be 'string','text','password','integer','double','boolean'
+##       'date','time','datetime','blob','upload', 'reference TABLENAME'
+## There is an implicit 'id integer autoincrement' field
+## Consult manual for more options, validators, etc.
+##
+## More API examples for controllers:
+##
+## >>> db.mytable.insert(myfield='value')
+## >>> rows=db(db.mytable.myfield=='value').select(db.mytable.ALL)
+## >>> for row in rows: print row.id, row.myfield
+#########################################################################
+
+# ACA COMIENZA EL PROYECTO REMIZER
+
+###########################################################################################################
+
+
+####################################################
+####################################################
+db.define_table('ciudades',
+   Field("ciudad",
+       requires=IS_IN_SET([
+             'Moron',
+             'Merlo',
+             'Gonzales_Catan'
+             'Pontevedra'])),
+
+
+    )
+#db.ciudades.Moron.requires=IS_IN_DB(db,db.LOCALIDAD_moron.id,'%(calles_de_moron)s')    
+#db.ciudades.Merlo.requires=IS_IN_DB(db,db.MERLO.id,'%(CALLES_MERLO)s')  
+#db.ciudades.Gonzales_Catan.requires=IS_IN_DB(db,db.CATAN.id,'%(CALLES_G_CAT)s')  
+#db.ciudades.Pontevedra.requires=IS_IN_DB(db,db.PONTEVEDRA.id,'%(CALLES_PONTEVEDRA)s')  
+    ###########################################################################
+
+###############################################
+############################
+
+db.define_table("chofer",
+    Field("nombre",required=True),
+    Field("apellido",required=True),
+    Field('foto', 'upload'),
+    Field("dni",unique=True),
+    Field("fecha_nacimiento",'date'),
+    Field("direccion"),
+    Field("ciudad"),
+    Field("provincia"),
+    Field("pais"),
+    Field("telefono"),
+    Field("mail"),
+    Field("categoria","string", writable=False, readable=False),
+    Field("nro_licencia","string"),
+    Field("vencimiento", 'date'),
+    Field("fecha_alta","datetime", writable=False, readable=False, 
+    default=request.now),
+    )
+
+
+################################################################################
+db.define_table("transporte",
+    Field("transporte_id","id"), 
+    Field("nro_patente"),
+    Field("nro_motor"),
+    Field("title"),
+    Field("marca"),
+    Field("modelo"),
+    Field("tipo"),
+    Field("fecha_compra","date"),
+    Field("costo_compra"),
+    Field("lugar_compra"),
+    Field("seguro_compania"),
+    Field("seguro_monto"),
+    Field("seguro_vencimiento","date"),
+    Field("cant_ejes"),
+    Field("color"),
+    Field("capacidad_carga"),
+    Field("verificacion_tecnica",'date'),
+    Field("odometro_adquisicion"),
+    Field("foto","upload"),
+    Field("asigna_chofer",db.chofer,requires=IS_IN_DB(db,db.chofer,'%(nombre)s-%(apellido)s-%(nro_licencia)s')),
+    Field("estado_transporte",default='Disponible',label='Estado del transporte',
+        requires=IS_IN_SET(('Disponible','en viaje','Fuera de servicio'))),
+    
+    format='%(title)s')
+
+
+
+##############################
+db.define_table("Planta_origen",
+          Field('cod_planta_orig','integer',required=True,label=T('CODIGO DE PLANTA')),
+          Field('Nombre_planta_orig','string',required=True,label=T('NOMBRE')),
+          Field('Direccion_planta_orig','string',required=True,label=T('DIRECCION')),
+)
+################################
+db.define_table("Planta_destino",
+          Field('cod_planta_dest','integer',required=True,label=T('CODIGO DE PLANTA')),
+          Field('Nombre_planta_dest','integer',required=True,label=T('NOMBRE')),
+          Field('Direccion_planta_dest','string',required=True,label=T('DIRECCION')),
+) 
+#######################
+
+###############################################
+db.define_table("deposito",
+          Field("cod_deposito","integer"),
+          Field('tipos_organizacion_dep','string',requires=IS_IN_SET([ 'LAMINADOS', 'BARRAS TREFILADOS','METAL DESPLEGABLE-ALUMINIO','PERFILES ESTRUCTURALES'])),
+          Field("fecha_deposito","date"),)
+     
+     
+
+######################################################e
+
+
+
+
+######################################
+
+
+###############################
+
+
+db.define_table('articulo',
+   Field('articulo_id','id'),
+   Field('imagen', 'upload'),
+   Field('nombre','string'),
+   Field('tipos_organizacion','string',requires=IS_IN_SET([ 'LAMINADOS', 'BARRAS TREFILADOS','METAL DESPLEGABLE-ALUMINIO','PERFILES ESTRUCTURALES'])),
+   Field("fecha","datetime", writable=False, readable=True, default=request.now),
+   Field('codigo_Articulo','integer',required=True,label=T('CODIGO DE ARTICULOS')),
+   Field('Detalle_Articulo', 'text'),
+   Field('espesor','integer'),Field('ancho',"integer"),Field('diametro','integer'),Field('unidades','string',requires=IS_IN_SET([ 'gramos', 'kilogramos','unidades','botellas','cajas'])),     
+   Field('precio_Compra_Articulo','double',required=True,label=T('PRECIO DE COMPRA')),
+   Field('precio_Venta_Articulo','double',required=True,label=T('PRECIO DE VENTA')), 
+   Field('cantidad','integer',required=True,label=T('CANTIDA')),
+   Field("deposito",default='DEPOSITO 01',label='DEPOSITO RECEPCION'),
+   Field("fecha_de_recepcion", 'datetime',default=request.now,label='FECHA DE RECEPCION DEL ARTICULO'),
+   Field("lote",default='LOTE A-1',label='LOTE DE ALMACENAMIENTO',
+        requires=IS_IN_SET(('LOTE A-1','LOTE A-2','LOTE A-3'))),
+
+   Field('fecha_Baja_Articulo','date',writable=False,readable=False),
+   Field('sortable','integer'),
+   auth.signature,
+   format='%(nombre)s')
+
+
+db.define_table('factura',
+    Field('nro_fact', 'id'),
+    Field('fecha', 'date', default=request.now.date()),
+    Field('cod_cli', db.auth_user),
+    Field('total', 'double'),)
+
+# and one table to store sales of products to users
+db.define_table('sale',
+   Field('invoice'),
+   Field('creditcard',label=T('TARJETA DE CREDITO')),
+   Field('buyer',db.auth_user,default=auth.user_id,label=T('NOMBRE DE CLIETE'),
+        requires = IS_IN_DB(db, db.auth_user.id, "(%(id)s) %(first_name)s %(last_name)s")),
+
+   Field('product',db.articulo,requires=IS_IN_DB(db,db.articulo,'%(nombre)s'),
+    label=T('NOMBRE DEL ARTICULO')),
+   Field('quantity','integer',label=T('CANTIDAD')),
+   Field('price','double',label=T('PRECIO')),
+   Field("fecha_de_pedido", 'datetime',default=request.now,label='FECHA/HORA DEL PEDIDO  DEL ARTICULO'),
+   Field("catalogar_pedido",default='Aplazable',label='CATALOGAR PEDIDO',
+        requires=IS_IN_SET(('Aplazable','URGENTE'))),
+   Field("fecha_de_preparado", 'datetime',default=request.now,label='FECHA/HORA DEL PREPARADO DEL PEDIDO'),
+   Field("fecha_del_envio", 'datetime',default=request.now,label='FECHA/HORA DE ENVIO DEL PEDIDO'),
+   Field("fecha_de_entrega", 'datetime',default=request.now,label='FECHA/HORA DE ENTREGA DEL PEDIDO'),
+   Field('shipped','boolean',default=False,label=T('ENVIO')),
+   Field("estado_pedido",default='Pendiente',label='ESTADO DEL PEDIDO',
+        requires=IS_IN_SET(('En curso','Realizado','Pendiente'))),
+   Field('shipping_address',label=T('DIRECCIO DE ENVIO')),
+   Field('shipping_city',label=T('NOMBRE DE LA CIUDAD')),
+   Field('shipping_state',label=T('LOCALIDAD')),
+   Field('shipping_zip_code',label=T('CODIGO POSTAL DE ENVIO')),
+   Field('shipping_date','datetime',label=T('FECHA DE ENVIO')),
+   Field('delivery_date','datetime',label=T('FECHA DE ENTREGA')),
+   Field('tracking_number',label=T('NUMERO DE SEGUIMIENTO')),
+   Field("puerta_partida",default='PUERTA P-1',label='PUERTA DE PARTIDA',
+        requires=IS_IN_SET(('PUERTA P-1','PUERTA P-2','PUERTA P-3'))),
+   Field('asignar_transporte',db.transporte,label=T('DATOS DEL TRASPORTE '),
+      requires=IS_IN_DB(db,db.transporte.id,'%(id)s-%(tipo)s-%(nro_patente)s-%(asigna_chofer)s')),   
+   Field('asignar_chofer',db.chofer,label=T('DATOS DEL CHOFER'),
+      requires=IS_IN_DB(db,db.chofer.id,'%(id)s-%(nombre)s-%(apellido)s-%(dni)s')), 
+   auth.signature),
+
+# we also make a session cart, just in case
+session.cart = session.cart or {}
+#######################################
+db.define_table('Factuas_venta',
+    Field('nro_fact', db.factura),
+    Field('cant', 'integer'),
+    Field('cod_art', db.articulo),
+    Field('importe', 'double'),
+)
+#################################
+
+db.define_table('factura_item', 
+    Field('invoice_id', db.factura), 
+    Field('product_id', db.articulo), 
+    Field('quantity', 'double'), 
+    Field('price', 'double'), 
+    Field('sub_total', 'double'), 
+)
+db.define_table('Remito',
+    Field('numero_remito','id'), 
+    Field('cliente_id', db.sale,
+        requires = IS_IN_DB(db, db.sale, "%(buyer)s" )),
+    Field('cliente_domicilio', db.auth_user,
+        requires = IS_IN_DB(db, db.auth_user.id, "%(ciudad)s -%(calle)s - %(nro_calle)s -(%(id)s)" )),    
+    Field("localidad_id_destino", db.sale,
+        requires = IS_IN_DB(db, db.sale.id, "%(shipping_address)s - (%(id)s)" )),
+    Field('detalle', db.sale,
+        requires = IS_IN_DB(db, db.sale.id, "%(product)s - (%(id)s)" )),   
+    Field('cantidad', 'double'), 
+    Field('fecha_de_entrega', 'double'),
+    Field('forma_de_entrega', db.sale,
+        requires = IS_IN_DB(db, db.sale.id, "%(asignar_transporte)s - (%(id)s)" )),) 
+##########################################################################
+  
+
+######################################
+db.define_table('stock',
+    Field('cod_art', db.articulo,requires=IS_IN_DB(db,db.articulo.articulo_id,'%(codigo_Articulo)s')),
+    Field('cant', 'integer'), # + para ingresos, - para egresos
+    Field('fecha', 'datetime', default=request.now),
+    )
+
+#############################################
+
+db.chofer.nombre.requires=IS_NOT_EMPTY(error_message='coloque el nombre')    
+db.chofer.apellido.requires=IS_NOT_EMPTY(error_message='coloque el apellido')
+db.chofer.dni.requires=IS_NOT_EMPTY(error_message='debe colocar nº de dni'), IS_NOT_IN_DB(db, db.chofer.dni)
+db.chofer.direccion.requires=IS_NOT_EMPTY(error_message='coloque la direccion')
+#db.chofer.ciudad.requires=IS_NOT_EMPTY(error_message='coloque la ciudad')
+db.chofer.direccion.requires=IS_NOT_EMPTY(error_message='coloque la direccion')
+db.chofer.categoria.requires = IS_IN_SET(['chofer', 'peon de carga', 'empleado mantenimiento'])
+
+db.transporte.asigna_chofer.requires = IS_IN_DB(db, db.chofer.id,"%(id)s-%(nombre)s-%(apellido)s-%(dni)s" )
+db.transporte.title.requires = IS_NOT_IN_DB(db, db.transporte.title)

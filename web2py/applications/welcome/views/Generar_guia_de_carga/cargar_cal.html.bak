@@ -1,0 +1,4 @@
+
+{{extend 'layout.html'}}
+<h1>This is the Generar_guia_de_carga/cargar_cal.html template</h1>
+{{=BEAUTIFY(response._vars)}}

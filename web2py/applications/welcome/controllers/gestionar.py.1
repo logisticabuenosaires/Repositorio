@@ -1,0 +1,112 @@
+############################################################################################################
+# Este controlador contiene las paginas del DESPACHADOR, se necesita estar logueado como tal para poder navegar.
+############################################################################################################
+#@auth.requires_login()
+def index():
+   response.flash = "ORGANICE SU REPARTO!"    
+   return dict()
+
+############################################################################################################
+
+   
+def user():
+    return dict(form=auth())
+
+############################################################################################################
+
+def download():
+    return response.download(request,db)
+
+############################################################################################################
+
+
+def call():
+    session.forget()
+    return service()        
+#####################
+def buscar_cliente():
+    form = SQLFORM.factory(
+        Field("cliente_id", db.lista_clientes, default=auth.user_id, 
+        requires = IS_IN_DB(db, db.lista_clientes.id, "(%(id)s) %(first_name)s %(last_name)s")))
+    if form.accepts(request.vars, session):
+        cliente = db(db.lista_clientes.id==form.vars.cliente_id).select().first()
+        if cliente: # lo encontre?
+            session.cod_cli  = cliente.codigo_CLIENTES,
+            session.pedidos = []
+            redirect(URL('verificar_existencia'))
+        else:
+            response.flash = "cliente no encontrado"
+    return dict(form=form)
+
+def verificar_existencia():
+    # recibo session.cod_cli
+    form = SQLFORM.factory(
+        Field("stock", db.stock, 
+        requires = IS_IN_DB(db, db.stock.id, "(%(id)s) %(codigo_Articulo)s")))
+    if form.accepts(request.vars, session):
+        art = db(db.stock.id==form.vars.stock).select().first()
+        if not art:
+            response.flash = "articulo no encontrado"
+        else:
+            existencia = db(db.stock.codigo_Articulo==form.vars.codigo_Articulo).select(
+                            db.stock.cantidad.sum().with_alias("suma")).first()
+            if not existencia or existencia.suma<=form.vars.cant:
+                response.flash = "no hay en existencia"
+            else:
+                # voy agregando los articulos y cantidades pedidas
+                session.pedidos.append({'codigo_Articulo': form.vars.codigo_Articulo,
+                                        'cantidad': form.vars.cantidad,
+                                        'precio_Venta_Articulo': articulo.precio_Venta_Articulo})
+    return dict(form=form)                                
+                
+def generar_factura():
+    # creamos la factura
+    nro_fact = db.factura.insert(
+        cod_cli=session.codigo_CLIENTES,
+        total=0,
+        )
+    total = 0
+    # recorro los art/cant/precio
+    for pedido in session.pedidos:
+        # registro cada venta:
+        db.Facturas_venta.insert(
+            nro_fact=nro_fact,
+            cant=pedido['cant'],
+            cod_art=pedido['cod_art'],
+            importe=pedido['precio'],
+        )
+        total += pedido['cant'] * pedido['precio']
+        # descuento stock
+        db.stock.insert(
+            cod_art=pedido['cod_art'],
+            cant=-pedido['cant'],
+        )
+    # actualizamos factura
+    db(db.factura.nro_fact==nro_fact).update(total=total)
+    
+    redirect(URL('imprimir_factura', vars={'nro_fact': nro_fact}))
+    
+def imprimir_factura():
+    nro_fact = request.vars['nro_fact']
+    # buscar factura
+    fact = db(db.factura.nro_fact==nro_fact).select().first()
+    # buscar cliente
+    cli = db(db.sale.buyer==fact.cod_cli).select().first()
+    # busco ventas
+    datos_venta = []
+    for sale in db(db.sale.invoice==nro_fact).select():
+        # busco el articulo
+        art = db(db.articulo.codigo_Articulo==sale.product).select().first()
+        datos_venta.append({
+            'cod_art': sale.product,
+            'importe': sale.price,
+            'cant': sale.quantity,
+            'descripcion': articulo.nombre,
+            })
+    factura_impresa = {
+         'nro_fact': nro_fact,
+         'cod_cli': fact.cod_cli,
+         'total': fact.total,
+         'datos_ventas': datos_venta
+         } 
+    return factura_impresa

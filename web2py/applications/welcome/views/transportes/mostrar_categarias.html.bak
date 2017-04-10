@@ -1,0 +1,18 @@
+{{extend 'layout_productos.html'}}
+<table>
+    <tr>
+<h1>CATEGORIAS TRANSPORTES </h1>
+
+<ul>
+{{for d in images:}}
+ <td style="text-align: center">
+
+<img width="200px"
+ src="{{=URL('download', args=(d.foto if d.foto else d.foto))}}" /> 
+ 
+ {{=LI(A(d.title, _href=URL("show", args=d.transporte_id)))}}
+
+{{pass}}
+    </tr>
+</ul>
+</table>

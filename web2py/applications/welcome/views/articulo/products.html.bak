@@ -1,0 +1,8 @@
+{{extend ' layout_pedido.html'}}
+<h1>Products</h1>
+<ul>
+{{for product in products:}}
+<li><a href="{{=URL('edit_product',args=articulo_id)}}">{{=articulo.Detalle_Articulo}}</a></li>
+{{pass}}
+<li>...<a href="{{=URL('edit_product')}}">add product</a></li>
+</ul>

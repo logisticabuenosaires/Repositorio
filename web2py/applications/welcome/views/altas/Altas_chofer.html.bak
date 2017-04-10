@@ -1,0 +1,3 @@
+{{extend 'layout_administrador.html'}}
+<h1>Esta es la plantilla altas/Altas_chofer.html</h1>
+{{=f}}

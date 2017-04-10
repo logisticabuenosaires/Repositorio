@@ -1,0 +1,66 @@
+# coding: utf8
+# try something like
+def index(): 
+    pedir = db(db.articulo.articulo_id>0).select()  
+    return dict(message="hello from pedidos.py")
+
+def hacer_pedido():
+
+    optar = db(db.opcion.producto == db.articulo.articulo_id).select()    
+    product_form = FORM(
+        TABLE(
+            [TR(TD(INPUT(_name='opcion', _value=opcion.id, _type='checkbox', _onchange="update_price(this, %.2f)" % opcion.precio), opcion.descripcion), H3('$%.2f' % opcion.price)) for opcion in optar],        
+
+                
+            BR(),
+            TH('Cantidad:', INPUT(_name='cantidad', _label='Cantidad', _class='integer', _value=1, _size=1)), INPUT(_type='submit', _value='Comprar'),
+        )
+    )
+    return dict(optar=optar,    product_form=product_form )
+def borrar_compra():
+    db(db.ventas.id>0).delete()
+    redirect(URL(r=request,f='pedido'))    
+    
+def resetear_compra():
+    db(db.pedidos_ralizados.id>0).update(cantidad=0)
+    redirect(URL(r=request,f='product'))
+
+def mostrar_categorias():
+    images = db(db.articulo,db.articulo.title).select()
+    return dict(images=images)
+def show():  
+    images = db.articulo(request.args(0)) or redirect(URL('mostrar_categarias')).select(
+    images.imagen)
+    optar = db(db.opcion.producto == db.articulo.articulo_id).select()   
+    product_form = FORM(
+        TABLE(
+            [TR(TD(INPUT(_name='opcion', _value=opcion.id, _type='checkbox', _onchange="update_price(this, %.2f)" % opcion.precio), opcion.descripcion), H3('$%.2f' % opcion.price)) for opcion in optar],        
+
+                
+            BR(),
+            TH('Cantidad:', INPUT(_name='cantidad', _label='Cantidad', _class='integer', _value=1, _size=1)), INPUT(_type='submit', _value='Comprar'),
+        )
+ 
+)
+    if product_form.accepts(request.vars, session):  
+        cantiadad= int(product_form.vars.cantidad)
+        opcion_id = product_form.vars.optar
+        session.cart.append((articulo_id, cantidad, opcion_id))
+        redirect(URL(r=request, f='ver_pedido'))
+    return dict(images=images,optar=optar, product_form=product_form )
+@auth.requires_login()
+def ver_pedido():
+    return dict()
+ 
+def download():
+    return response.download(request, db)
+def remove_from_cart():
+    # remove product from cart
+    del session.cart[int(request.args[0])]
+    redirect(URL(r=request, f='checkout'))
+
+def empty_cart():
+    #carrito vacío de todos los productos
+    session.cart.clear()
+    session.balance = 0
+    redirect(URL(r=request, f='comprar'))

@@ -1,0 +1,47 @@
+# coding: utf8
+TIPOS_DOCUMENTO = ['DNI', 'LE', 'LC', 'CI', 'PA']
+SEXOS = ['M', 'F']
+
+db.define_table('lista_clientes',
+   Field('user_id', db.auth_user, default=auth.user_id, 
+          readable=False, writable=False),
+#    Field('first_name', length=128, default='',label=T('Nombre')),
+ #   Field('last_name', length=128, default='',label=T('Apellido')),
+    Field('fecha_alta', 'date', default=request.now.date,
+          readable=True, writable=False),
+    Field('foto', 'upload'),
+    Field('legajo', 'integer'),
+    # Datos personales
+    
+    Field('tipo_doc', 'string'),
+    Field('nro_doc', 'string'),
+    Field('fec_nac', 'date'),
+    Field('sexo', 'string', requires=IS_IN_SET(SEXOS)),
+    Field('nacionalidad', 'string'),
+    # ...    
+    # Otros Datos  
+
+    Field('codigo_CLIENTES','integer',required=True,label=T('CODIGO DE CLIENTES'), unique=True),
+    Field('CUIT_CLIENTES',"string", length=13,required=True,label=T('N° CUIT DEL CLIENTES'), unique=True),
+
+    Field('TIPO_EMPRESA',requires=IS_IN_SET([ 'PRODUCCION', 'COMERCIAL','SERVICIOS'])),
+    Field('tipo_client_responsable','string',
+    requires=IS_IN_SET([ 'IVA', 'EXENTO','NORESPONSABLE','MONOTRIBUTISTA']),required=True,label=T('TIPO DE RESP.INSC')),
+    Field('fecha_Alta_CLIENTE','date',required=True,label=T('FECHA DE ALTA')),
+    Field('fecha_Baja_CLIENTE','date',writable=False,readable=False),
+    Field('situacion_arancelaria_ok', 'boolean', 
+          readable=False, writable=False),
+    Field('latitude','double',default=0.0,readable=False,writable=False),
+    Field('longitude','double',default=0.0,readable=False,writable=False),
+    Field("localidad",label=T('Localidad')),
+    Field("calle",label=T('Calle')),
+    Field("nro_calle", 'integer',label=T('Nro de calle')),
+    Field("entrecalle1",label=T('Entrecalle 1')),
+    Field("entrecalle2",label=T('Entrecalle 2')),
+    # Datos varios
+    Field('autorizo_publicacion', 'boolean',
+          comment='de trabajos de mi autoría, como así tambien mi foto ...'),
+    format=lambda x: "%(last_name)s, %(first_name)s" % db.auth_user[x.user_id]
+    )
+
+db.lista_clientes.tipo_doc.requires = IS_IN_SET(TIPOS_DOCUMENTO)

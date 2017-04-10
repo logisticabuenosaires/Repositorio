@@ -1,0 +1,18 @@
+{{extend 'layout_gestionar.html'}}
+<table>
+    <tr>
+<h1>PRODUCTOS PLANCHAS </h1>
+
+<ul>
+{{for d in images:}}
+ <td style="text-align: center">
+
+<img width="200px"
+ src="{{=URL('download', args=(d.imagen if d.imagen else d.imagen))}}" /> 
+ 
+ {{=LI(A(d.title, _href=URL("show", args=d.articulo_id)))}}
+
+{{pass}}
+    </tr>
+</ul>
+</table>

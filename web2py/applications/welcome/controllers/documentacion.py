@@ -1,0 +1,72 @@
+# coding: utf8
+# intente algo como
+# coding: utf8
+# intente algo como
+def index(): return dict(message="hello from ABM.py")
+def modificasiones():
+    id_libro =db().select( db.aut.id_libro,db.Libro.titulo,db.Libro.nombre_autor,db.Libro.ISBN,db.Libro.genero)
+    listado=[]
+    i=0
+    for x in id_libro:
+        i=i+1      
+    listado.append(TABLE
+    (TR(TH('CODIGO',_style='width:20px; color:#000; background: #99f; border: 2px solid #cdcdcd'),TH('TITULO',_style='width:20px; color:#000; background: #99f; border: 2px solid #cdcdcd'),TH('AUTOR',_style='width:200px; color:#000; background: #99f; border: 2px solid #cdcdcd'),TH('ISBM',_style='width:20px; color:#000; background: #99f; border: 2px solid #cdcdcd'),TH('GENERO',_style='width:20px; color:#000; background: #99f; border: 2px solid #cdcdcd'),
+    TH('ACCIONES', _style='width:200px; color:#000; background: #99f; border: 2px solid #cdcdcd')
+    ),TFOOT(TR(TH('Total: ',_style='width:20px; color:#000; background: #99f; border: 2px solid #cdcdcd'),TH(i,' LIBRO',_style='width:120px; color:#000; background: #99f; border: 2px solid #cdcdcd'))),
+    *[TR(TD(rows.id_libro,_style='width:20px; color:#000; background: #eef; border: 2px solid #cdcdcd'),
+    TD(rows.titulo,_style='width:100px; color:#000; background: #eef; border: 2px solid #cdcdcd'),
+    TD(rows.nombre_autor,_style='width:200px; color:#000; background: #eef; border: 2px solid #cdcdcd'),
+    TD(rows.ISBN,_style='width:200px; color:#000; background: #eef; border: 2px solid #cdcdcd'),
+    TD(rows.genero,_style='width:200px; color:#000; background: #eef; border: 2px solid #cdcdcd'),
+    TD(
+        A('Ver',_href=URL(r=request, f='Mostrar', args=[rows.id_libro]) ) ,' - ',
+        A('Modificar',_href=URL(r=request, f='Modificar', args=[rows.id_libro]) ) ,' - ',
+        A('Eliminar',_href=URL(r=request, f='Borrar', args=[rows.id_libro]) ) ,
+        _style='width:200px; color:#000; background: #eef; border: 2px solid #cdcdcd' ) )
+    for rows in id_libro]),
+    )
+    tablaFinal = DIV(listado)
+    return dict(f=tablaFinal)
+def Mostrar():
+    id_libro= db(db.Libro.id_libro==request.args(0)).select()
+    asp= id_libro[0]
+    listado=[]
+    listado.append(TABLE
+    (
+    TR(TH('CODIGO'),TD(asp.id_libro)),
+    TR(TH('DETALLE ARTICULO '),TD(asp.titulo)),
+    TR(TH('PRECIO DE COMPRA'),TD(asp.nombre_autor)),
+    TR(TH('PRECIO DE VENTA'),TD(asp.ISBN)),
+    TR(TH('PRECIO DE VENTA'),TD(asp.genero)),
+    )
+                )
+    tablaFinal= DIV(listado)
+    response.flash= "Datos del ARTICULO Seleccionado"
+    return dict(f=tablaFinal)    
+
+def Modificar():
+    id_libro= db(db.Libro.id_libro==request.args(0)).select()
+    aspi= id_libro[0]
+    db.Libro.id_libro.readable= False
+    form=SQLFORM(db.Libro, aspi, deletable= False,
+                   fields=['titulo','nombre_autor','ISBN','genero'],
+                   labels={'tituo':'TITULO ','nombre_autor': 'NOMBRE DEL AUTOR','ISBM':'IDENTIFICACION','genero':'GENERO DEL LIBRO'},submit_button='Grabar')
+    response.flash = "ADVERTENCIA: Los datos modificacidos se guardaran en la Base de Datos"
+    if form.accepts(request.vars,session):
+        response.flash = 'Registro Modificado'
+    return dict (f=id_libro)
+
+def Borrar():
+    id_libro = db(db.Libro.id_libro==request.args(0)).select()
+    asp = id_libro[0]
+    form = SQLFORM(db.Libro, asp, deletable=True, 
+    fields=['titulo','nombre_autor','ISBN','genero'],
+                    labels={'tituo':'TITULO ','nombre_autor': 'NOMBRE DEL AUTOR','ISBN':'IDENTIFICACION','genero':'GENERO DEL LIBRO'}, submit_button='Eliminar')
+    if form.accepts(request.vars, session):
+        session.flash = "PEDIO eliminado"
+        redirect(URL(r=request, f='listar'))
+    elif form.errors:
+        response.flash = "Hubo errores"
+    else:
+        response.flash = "ADVERTENCIA: Todos los datos de esta Carrera serán eliminados de la base de datos. Para eliminar haga click en la casilla de confirmación y luego presione el botón Eliminar"
+    return dict(f=form)

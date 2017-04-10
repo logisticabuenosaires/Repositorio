@@ -1,0 +1,28 @@
+<BODY onload="window.print()">
+
+<center> <font face="tahoma">
+
+<h1> PEDIDO </h1>
+
+
+<table width=100% border=3>
+<tr>
+    <td><center>
+        <h2> Nro: {{=pedido.id}} </h2> 
+        <h3> Chofer: <br> {{=chofer.nombre}}  {{=chofer.apellido}} <br> </h3>
+
+    </center></td>
+    <td>
+    <center>
+    <b> Cliente: </b>  {{=cliente.first_name}} {{=cliente.last_name}}  </i>
+    <b> Destino: </b>  {{= localidad_destino.shipping_city}}  </i>
+    </center>
+    </td>
+</tr>
+</table>
+
+<h5>
+Remises R21, utiliza el sistema de gestion REMIZER. Por cualquier consulta puede contactarnos por medio de nuetro sitio web www.vektorsystems.com.ar
+</h5>
+
+</center> </font>

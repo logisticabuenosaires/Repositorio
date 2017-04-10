@@ -1,0 +1,240 @@
+/************ Beging: Menu flash*****************/
+
+ul.web2py-menu,
+ul.web2py-menu ul,
+ul.web2py-menu li,
+ul.web2py-menu a
+{
+    -moz-border-radius: 25px;
+    -webkit-border-radius: 25px;
+    display: block;
+    margin: 0;
+    padding: 0;
+}
+
+ul.web2py-menu {
+    background: solid;
+}
+
+ul.web2py-menu,
+ul.web2py-menu li,
+ul.web2py-menu ul
+{
+    list-style: none;
+}
+
+ul.web2py-menu ul
+{
+    display: none;
+}
+
+ul.web2py-menu li
+{
+    position: relative;
+    z-index: 1;
+}
+
+ul.web2py-menu li:hover
+{
+    z-index: 999;
+}
+
+ul.web2py-menu li:hover > ul
+{
+    display: block;
+    position: absolute;
+}
+
+ul.web2py-menu-horizontal li
+{
+    float: left;
+    width: auto;
+}
+
+ul.web2py-menu-hRight li
+{
+    float: right;
+}
+
+ul.web2py-menu-vertical li
+{
+    float: none;
+}
+
+ul.web2py-menu-vertical,
+ul.web2py-menu-vertical ul
+{
+    width: 10em;
+}
+
+ul.web2py-menu-wide
+{
+    width: 100%;
+}
+
+ul.web2py-menu-vRight
+{
+    float: right;
+}
+
+ul.web2py-menu-lFloat
+{
+    float: left;
+}
+
+ul.web2py-menu-noFloat
+{
+    float: none;
+}
+
+div.web2py-menu-center ul.web2py-menu
+{
+    float: left;
+    position: relative;
+    left: 50%;
+}
+
+div.web2py-menu-center ul.web2py-menu li
+{
+    position: relative;
+    left: -50%;
+}
+
+div.web2py-menu-center ul.web2py-menu li li
+{
+    left: auto;
+}
+
+ul.web2py-menu-horizontal ul
+{
+    top: auto;
+    right: auto;
+    left: auto;
+    margin-top: 1px;
+}
+
+ul.web2py-menu-vertical ul
+{
+    left: 60%;
+    right: auto;
+    top: auto;
+    margin-top: -0.5em;
+}
+
+ul.web2py-menu-vRight ul,
+ul.web2py-menu-hRight ul.web2py-menu-vertical ul,
+ul.web2py-menu-dRight,
+ul.web2py-menu-dRight ul
+{
+    left: -60%;
+    right: auto;
+    top: auto;
+    margin-top: -0.5em;
+}
+
+ul.web2py-menu-hRight ul
+{
+    left: auto;
+    right: 0;
+    top: auto;
+    margin-top: -1px;
+}
+
+/*color y tamaño del borde del menu*/
+ul.web2py-menu li a
+{
+    border: solid 2px #66f
+}
+
+ul.web2py-menu-horizontal li
+{
+    margin-bottom: -5px;
+    margin-left: -5px;
+}
+
+ul.web2py-menu-horizontal/*probando*/
+{
+    padding-left: 10px ;
+}
+
+ul.web2py-menu-vertical li/*espacio entre menus*/
+{
+    margin-left: 0;
+    margin-top: 15px;/**/
+}
+
+ul.web2py-menu li a/*esto nose q hace*/
+{
+    padding: 2px 5px 3px;
+}
+/*nose q puede pasar con esto*/
+ul.web2py-menu li a:link,
+ul.web2py-menu li a:hover,
+ul.web2py-menu li a:visited,
+ul.web2py-menu li a:active
+{
+    text-decoration: none;
+}
+
+ul.web2py-menu li.sfhover a:active,
+ul.web2py-menu li:hover a:active
+{
+    color: #fff;
+    background-color: #c00;
+}
+
+/*ul.web2py-menu li
+{
+    background: url('menu.gif');
+}*/
+
+/*****************************/
+
+ul.web2py-menu li:hover,
+ul.web2py-menu li.sfhover
+{
+    background-color: #1c1c1c;
+}
+
+ul.web2py-menu li a:hover
+{
+    background-color: #ffc;
+}
+
+.web2py-menu-active a {
+    background-color: white;
+}
+
+ul.web2py-menu li.web2py-menu-expand a,
+ul.web2py-menu li.web2py-menu-expand li.web2py-menu-expand a,
+ul.web2py-menu li.web2py-menu-expand li.web2py-menu-expand li.web2py-menu-expand a
+{
+    padding-right: 25px;
+    /*
+    background-image: url("expand-right.gif");
+    background-repeat: no-repeat;
+    background-position: 100% 50%;
+    */
+}
+
+ul.web2py-menu-vRight li.web2py-menu-expand a,
+ul.web2py-menu-vRight li.web2py-menu-expand li.web2py-menu-expand a,
+ul.web2py-menu-vRight li.web2py-menu-expand li.web2py-menu-expand li.web2py-menu-expand a,
+ul.web2py-menu-hRight li.web2py-menu-expand a,
+ul.web2py-menu-hRight li.web2py-menu-expand li.web2py-menu-expand a,
+ul.web2py-menu-hRight li.web2py-menu-expand li.web2py-menu-expand li.web2py-menu-expand a
+{
+    padding-right: 5px;
+    padding-left: 20px;
+    /*
+    background-image: url("expand-left.gif");
+    background-repeat: no-repeat;
+    background-position: -5px 50%;
+    */
+}
+
+ul.web2py-menu-horizontal li.web2py-menu-expand a
+{
+    padding-left: 5px;
+    padding-right: 15px;
+    /*

@@ -1,0 +1,34 @@
+{{extend 'layout_gestionar.html'}}
+
+<center> <h1> BUSCAR PEDIDOS POR CLIENTE </h1>
+Ingrese un cliente para realizar la busqueda
+{{=form}}
+{{if (cliente!=None) & (cliente!=""):}}
+La busqueda se realizo con el cliente<b> {{=cliente}} </b>
+<br>
+</center>
+<table border="0" width="100%">
+<tr>
+    <th><center> Codigo </center></th>
+    <th><center> Fecha del pedido </center></th>
+    <th><center> Fecha de entrega </center></th>
+    <th><center> Cliente </center></th>
+    <th><center> Opciones </center></th>
+</tr>
+{{for sale in buscar_pedidos:}}
+<tr>
+    <td><center> {{=sale.id}} </center></td>
+    <td><center> {{=sale.fecha_de_pedido}} </center></td>
+
+    <td><center> {{=sale.product}} </center></td>
+
+    <td><center> {{=sale.quantity}} </center></td>
+    <td><center> {{=sale.asignar_chofer}} </center></td>
+    <td><center> {{=A('Modificar', _href=URL(r=request, f='modificar_pedido', args=sale.id))}}
+    </center><td>
+</tr>
+{{pass}}
+</table>
+<br>
+{{pass}}
+{{pass}} <!-- Aca terminan los pedidos de cualquier tipo de usuario -->

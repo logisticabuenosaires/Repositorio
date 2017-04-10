@@ -1,0 +1,47 @@
+# coding: utf8
+# try something like
+def index(): 
+
+    return dict(message="Elija su producto")
+
+  
+def mostrar_categorias():
+    images = db(db.articulo,db.articulo.title).select()
+    return dict(images=images)  
+def show():  
+    images = db.articulo(request.args(0)) or redirect(URL('mostrar_categarias')).select(
+    images.imagen)
+
+    product_form =SQLFORM.factory(
+        Field('cliente',db.auth_user,default=auth.user_id, writable=True, readable=False,
+        requires = IS_IN_DB(db, db.auth_user,"%(first_name)s %(last_name)s",)),
+        Field('Aticulo',db.articulo.precio_Venta_Articulo,),
+        Field('cantidad','integer'),)
+
+    if product_form.accepts(request.vars, formname='form'):
+        response.flash = 'Pedido realizado con exito!'
+        
+        db.pedido.insert(cliente=product_form.vars.cliente,
+                        Aticulo=product_form.vars.Aticulo,
+                        cantidad=product_form.vars.cantidad)
+    return dict(images=images, product_form=product_form )
+@auth.requires_login()
+def ver_carrito():
+    ver_pedido= db().select(db.pedido.id>0)  
+    return dict(ver_pedido=ver_pedido)
+ 
+def download():
+    return response.download(request, db)
+    
+    
+    
+def remove_from_cart():
+    # remove product from cart
+    del session.cart[int(request.args[0])]
+    redirect(URL(r=request, f='ver_carrito'))
+
+def empty_cart():
+    #carrito vacío de todos los productos
+    session.cart.clear()
+    session.balance = 0
+    redirect(URL(r=request, f='comprar'))

@@ -1,0 +1,235 @@
+def index():
+    if not auth.user_id:
+        redirect(URL(r=request, c="default", f="prohibido"))
+    
+    # SELECCIONA EL LAYOUT SEGUN EL USUARIO QUE SEA
+    esqueleto='layout.html'
+    if auth.has_membership (group_id=3):
+        esqueleto='layout_pedido.html'
+    elif auth.has_membership (group_id=4):
+        esqueleto='layout_gestionar.html'
+    return dict(esqueleto = esqueleto)
+def indice():
+    products = db(db.articulo).select(orderby=db.articulo.sortable)
+    return locals()
+# login, registration, etcetera
+def user():
+    return dict(form=auth())
+
+# an action to download uploaded images
+def download():
+    return response.download(request,db)
+
+# an action to expose web services
+def call():
+    session.forget()
+    return service()
+
+
+# an action to see and process a shopping cart
+@auth.requires_membership(role='Cliente')
+
+def cart():
+    if not session.cart:
+        session.flash = 'agregue su articulo al carrito'
+    redirect(URL('indice'))
+    return dict(cart=session.cart)
+ 
+# time to pay ... now for real
+
+def buy():
+    if not session.cart:
+        session.flash = 'Bienvenido agrege su compra'
+        redirect(URL('index'))
+    import uuid
+    from gluon.contrib.AuthorizeNet import process
+    invoice = str(uuid.uuid4())
+    total = sum(db.articulo(id).precio_Venta_Articulo*qty for id,qty in session.cart.items())
+
+    form = SQLFORM.factory(
+               Field('creditcard',default='4427802641004797',
+               label=T('TARJETA DE CREDITO'),requires=IS_NOT_EMPTY()),
+               Field('expiration',
+               label=T('FECHA DE VENCIMIENTO')
+               ,default='12/2012',requires=IS_MATCH('\d{2}/\d{4}')),
+               Field('cvv',default='123',requires=IS_MATCH('\d{3}')),
+               Field('shipping_address',
+               label=T('DIRECCIO DE ENVIO'),
+               requires=IS_NOT_EMPTY()),
+               Field('shipping_city'
+               ,label=T('NOMBRE DE LA CIUDAD'),
+               requires=IS_NOT_EMPTY()),
+               Field('shipping_state',
+               label=T('NOMBRE DE LOCALIDAD'),
+               requires=IS_NOT_EMPTY()),
+               Field('shipping_zip_code',label=T('CODIGO POSTAL DE ENVIO'),
+               requires=IS_MATCH('\d{5}(\-\d{4})?')))
+            
+    if form.accepts(request,session):
+        if process(form.vars.creditcard,form.vars.expiration,
+                   total,form.vars.cvv,0.0,invoice,testmode=True):
+            for key, value in session.cart.items():
+                db.sale.insert(invoice=invoice,
+                               buyer=auth.user.id,
+                               product = key,
+                               quantity = value,
+                               price = db.articulo(key).precio_Venta_Articulo,
+                               creditcard = form.vars.creditcard,
+                               shipping_address = form.vars.shipping_address,
+                               shipping_city = form.vars.shipping_city,
+                               shipping_state = form.vars.shipping_state)
+
+                if form.accepts(request,session):
+                    db.Remito.insert(numero_remito=numero_remito,
+                                   cliente_domicilio=form.vars.shipping_address,
+                                   localidad_id_destino= form.vars.shipping_address,
+                                   detalle= key,
+                                   cliente_id= auth.user.id  )   
+          
+            session.cart.clear()          
+            session.flash = 'GRACIAS POR REALIZAR SU PEDIDO'
+            redirect(URL('invoice',args=invoice))               
+        else:
+            response.flash = "payment rejected (please call XXX)"
+
+          
+    return dict(cart=session.cart,form=form,total=total)
+    
+@auth.requires_login()
+def invoice():
+
+    return dict(invoice=request.args(0))
+    
+# an action to add and remove items from the shopping cart
+def cart_callback():
+    id = int(request.vars.id)
+    if request.vars.action == 'add':
+        session.cart[id]=session.cart.get(id,0)+1    
+    if request.vars.action == 'sub':
+        session.cart[id]=max(0,session.cart.get(id,0)-1)
+    return str(session.cart[id])
+
+@auth.requires_login()
+def myorders():
+
+    orders = db(db.sale.buyer==auth.user.id).select(orderby=~db.sale.created_on,) 
+    return dict(orders=orders)
+    
+
+def products():
+    products = db(db.articulo).select()
+    return dict(products=products)
+    
+
+def edit_product():
+    form = crud.update(db.articulo,request.args(0))
+    return dict(form=form)
+    
+
+def users():
+    db.auth_user.id.represent=lambda id:A('info',_href=URL('info_user',args=id))
+    form,items = crud.search(db.auth_user)
+    return dict(form=form,users=items)
+    
+
+def info_user():
+    form = crud.read(db.auth_user,request.args(0))
+    orders = db(db.sale.buyer==request.args(0)).select(orderby=~db.sale.created_on)
+    return dict(form=form,orders=orders)        
+
+
+def edit_order():
+    db.sale.invoice.writable=False
+    db.sale.buyer.writable=False
+    db.sale.creditcard.writable=False
+    db.sale.product.writable=False
+    form = crud.update(db.sale,request.args(0))
+    return dict(form=form)
+###########################################
+
+
+################################################################
+def factura():
+    # busco ultima factura:
+    factura = db(db.sale.id>0).select(db.sale.invoice,orderby=db.sale.invoice)
+    if factura:
+        nro=factura[0].nro_fact+1
+    else:
+        nro=1
+        
+    # agregar factura (guardo el número de identificación id):
+    invoice_id=db.factura.insert(
+# Cliente (usuario conectado)! 
+        numero=nro, 
+        fecha=request.now, 
+        cod_cli=auth.user_id,
+        lugar_entrega='', # ver de preguntarlo en un formulario
+        )
+
+    # agrego los artículos a la factura
+    for product_id, qty,value  in session.cart:
+        products = db(db.articulo.articulo_id == product_id).select()
+        if products:
+            product = products[0]
+            total_price = sum(db.articulo(id).precio_Venta_Articulo*qty for id,qty in session.cart.items())
+            db.factura_item.insert(
+                invoice_id=invoice_id,
+                product_id=product_id,
+                quantity=qty,
+                price= product.price,
+                sub_total=total_price,
+                )
+        else:
+            # producto invalido##
+            pass
+    del session.cart
+    session.balance = 0
+    redirect(URL(r=request,f='show_invoice',args=invoice_id))
+def show_invoice():
+    invoice_id =request.args[0]
+    # busco la factura para mostrarla
+    factura = db(db.factura.id==invoice_id).select()[0]
+    client = db(db.auth_user.id==factura.cod_cli).select()[0]
+    # busco los articulos de la factura para mostrarlos
+    query = db.factura_item.invoice_id==invoice_id
+    query &= db.articulo.articulo_id == db.factura_item.product_id
+    invoice_lines =  db(query).select()
+
+    return dict(nro_factura=invoice.numero, invoice=invoice, client=client,
+                invoice_lines=invoice_lines)
+###################################################
+                
+def generar_factura():
+    # creamos la factur
+    # recorro los art/cant/precio
+
+    
+    redirect(URL('imprimir_factura'))
+    
+def imprimir_factura():
+    nro_fact = request.vars['nro_fact']
+    # buscar factura
+    fact = db(db.factura.nro_fact==nro_fact).select().first()
+    # buscar cliente
+    cli = db(db.auth_user.id).select().first()
+    # busco ventas
+    datos_venta = []
+    for sale in db(db.Factura_venta).select():
+        # busco el articulo
+        art = db(db.articulo.codigo_Articulo==sale.product).select().first()
+        datos_venta.append({
+            'cod_art': venta.cod_art,
+            'importe': venta.importe,
+            'cant': venta.cant,
+            'descripcion': art.descripcion,
+            })
+    factura_impresa = {
+         'nro_fact': nro_fact,
+         'cod_cli': fact.cod_cli,
+         'nombre_cliente': cli.nombre,
+         'domicilio_cliente': cli.domicilio,
+         'total': fact.total,
+         'datos_ventas': datos_venta
+         } 
+    return factura_impresa
+####################################

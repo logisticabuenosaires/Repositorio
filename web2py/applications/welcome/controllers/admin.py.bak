@@ -1,0 +1,32 @@
+############################################################################################################
+# Este controlador contiene las paginas del ADMINISTRADOR, se necesita estar logueado como tal para poder navegar.
+############################################################################################################
+
+@auth.requires_membership(role='Administrador')
+def index():
+    if auth.user_id:
+        if auth.has_membership (group_id=3):
+            redirect(URL(r=request, c="cliente"))
+        if auth.has_membership (group_id=5):
+            redirect(URL(r=request, c="Operador"))    
+        return dict()
+    return dict()
+############################################################################################################
+
+@auth.requires_membership(role='Administrador')    
+def user():
+    return dict(form=auth())
+def realizar_altas():
+    if not auth.user_id:
+        redirect(URL(r=request, c="default", f="prohibido"))
+    
+    # SELECCIONA EL LAYOUT SEGUN EL USUARIO QUE SEA
+    esqueleto='skel.html'
+    if auth.has_membership (group_id=4):
+        esqueleto=' layout_administrador.html'
+    elif auth.has_membership (group_id=2):
+        esqueleto='skel_operador.html'
+    elif auth.has_membership (group_id=3):
+        esqueleto='skel_cliente.html'
+
+    return dict(esqueleto=esqueleto)

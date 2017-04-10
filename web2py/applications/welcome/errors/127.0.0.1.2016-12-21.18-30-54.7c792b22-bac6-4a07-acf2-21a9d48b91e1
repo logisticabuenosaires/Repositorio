@@ -1,0 +1,737 @@
+(dp1
+S'output'
+p2
+S"<type 'exceptions.AttributeError'> 'DAL' object has no attribute 'ciudad'"
+p3
+sS'layer'
+p4
+S'/home/angel/web2py/applications/FINAL/controllers/appadmin.py'
+p5
+sS'code'
+p6
+S'# -*- coding: utf-8 -*-\n\n# ##########################################################\n# ## make sure administrator is on localhost\n# ###########################################################\n\nimport os\nimport socket\nimport datetime\nimport copy\nimport gluon.contenttype\nimport gluon.fileutils\n\n# ## critical --- make a copy of the environment\n\nglobal_env = copy.copy(globals())\nglobal_env[\'datetime\'] = datetime\n\nhttp_host = request.env.http_host.split(\':\')[0]\nremote_addr = request.env.remote_addr\ntry:\n    hosts = (http_host, socket.gethostname(),\n             socket.gethostbyname(http_host),\n             \'::1\',\'127.0.0.1\',\'::ffff:127.0.0.1\')\nexcept:\n    hosts = (http_host, )\n\nif request.env.http_x_forwarded_for or request.env.wsgi_url_scheme\\\n     in [\'https\', \'HTTPS\']:\n    session.secure()\nelif (remote_addr not in hosts) and (remote_addr != "127.0.0.1"):\n    raise HTTP(200, T(\'appadmin is disabled because insecure channel\'))\n\nif (request.application==\'admin\' and not session.authorized) or \\\n        (request.application!=\'admin\' and not gluon.fileutils.check_credentials(request)):\n    redirect(URL(\'admin\', \'default\', \'index\',\n                 vars=dict(send=URL(args=request.args,vars=request.vars))))\n\nignore_rw = True\nresponse.view = \'appadmin.html\'\nresponse.menu = [[T(\'design\'), False, URL(\'admin\', \'default\', \'design\',\n                 args=[request.application])], [T(\'db\'), False,\n                 URL(\'index\')], [T(\'state\'), False,\n                 URL(\'state\')], [T(\'cache\'), False,\n                 URL(\'ccache\')]]\n\n# ##########################################################\n# ## auxiliary functions\n# ###########################################################\n\n\ndef get_databases(request):\n    dbs = {}\n    for (key, value) in global_env.items():\n        cond = False\n        try:\n            cond = isinstance(value, GQLDB)\n        except:\n            cond = isinstance(value, SQLDB)\n        if cond:\n            dbs[key] = value\n    return dbs\n\n\ndatabases = get_databases(None)\n\n\ndef eval_in_global_env(text):\n    exec (\'_ret=%s\' % text, {}, global_env)\n    return global_env[\'_ret\']\n\n\ndef get_database(request):\n    if request.args and request.args[0] in databases:\n        return eval_in_global_env(request.args[0])\n    else:\n        session.flash = T(\'invalid request\')\n        redirect(URL(\'index\'))\n\n\ndef get_table(request):\n    db = get_database(request)\n    if len(request.args) > 1 and request.args[1] in db.tables:\n        return (db, request.args[1])\n    else:\n        session.flash = T(\'invalid request\')\n        redirect(URL(\'index\'))\n\n\ndef get_query(request):\n    try:\n        return eval_in_global_env(request.vars.query)\n    except Exception:\n        return None\n\n\ndef query_by_table_type(tablename,db,request=request):\n    keyed = hasattr(db[tablename],\'_primarykey\')\n    if keyed:\n        firstkey = db[tablename][db[tablename]._primarykey[0]]\n        cond = \'>0\'\n        if firstkey.type in [\'string\', \'text\']:\n            cond = \'!=""\'\n        qry = \'%s.%s.%s%s\' % (request.args[0], request.args[1], firstkey.name, cond)\n    else:\n        qry = \'%s.%s.id>0\' % tuple(request.args[:2])\n    return qry\n\n\n\n# ##########################################################\n# ## list all databases and tables\n# ###########################################################\n\n\ndef index():\n    return dict(databases=databases)\n\n\n# ##########################################################\n# ## insert a new record\n# ###########################################################\n\n\ndef insert():\n    (db, table) = get_table(request)\n    form = SQLFORM(db[table], ignore_rw=ignore_rw)\n    if form.accepts(request.vars, session):\n        response.flash = T(\'new record inserted\')\n    return dict(form=form,table=db[table])\n\n\n# ##########################################################\n# ## list all records in table and insert new record\n# ###########################################################\n\n\ndef download():\n    import os\n    db = get_database(request)\n    return response.download(request,db)\n\ndef csv():\n    import gluon.contenttype\n    response.headers[\'Content-Type\'] = \\\n        gluon.contenttype.contenttype(\'.csv\')\n    db = get_database(request)\n    query = get_query(request)\n    if not query:\n        return None\n    response.headers[\'Content-disposition\'] = \'attachment; filename=%s_%s.csv\'\\\n         % tuple(request.vars.query.split(\'.\')[:2])\n    return str(db(query,ignore_common_filters=True).select())\n\n\ndef import_csv(table, file):\n    table.import_from_csv_file(file)\n\ndef select():\n    import re\n    db = get_database(request)\n    dbname = request.args[0]\n    regex = re.compile(\'(?P<table>\\w+)\\.(?P<field>\\w+)=(?P<value>\\d+)\')\n    if len(request.args)>1 and hasattr(db[request.args[1]],\'_primarykey\'):\n        regex = re.compile(\'(?P<table>\\w+)\\.(?P<field>\\w+)=(?P<value>.+)\')\n    if request.vars.query:\n        match = regex.match(request.vars.query)\n        if match:\n            request.vars.query = \'%s.%s.%s==%s\' % (request.args[0],\n                    match.group(\'table\'), match.group(\'field\'),\n                    match.group(\'value\'))\n    else:\n        request.vars.query = session.last_query\n    query = get_query(request)\n    if request.vars.start:\n        start = int(request.vars.start)\n    else:\n        start = 0\n    nrows = 0\n    stop = start + 100\n    table = None\n    rows = []\n    orderby = request.vars.orderby\n    if orderby:\n        orderby = dbname + \'.\' + orderby\n        if orderby == session.last_orderby:\n            if orderby[0] == \'~\':\n                orderby = orderby[1:]\n            else:\n                orderby = \'~\' + orderby\n    session.last_orderby = orderby\n    session.last_query = request.vars.query\n    form = FORM(TABLE(TR(T(\'Query:\'), \'\', INPUT(_style=\'width:400px\',\n                _name=\'query\', _value=request.vars.query or \'\',\n                requires=IS_NOT_EMPTY(error_message=T("Cannot be empty")))), TR(T(\'Update:\'),\n                INPUT(_name=\'update_check\', _type=\'checkbox\',\n                value=False), INPUT(_style=\'width:400px\',\n                _name=\'update_fields\', _value=request.vars.update_fields\n                 or \'\')), TR(T(\'Delete:\'), INPUT(_name=\'delete_check\',\n                _class=\'delete\', _type=\'checkbox\', value=False), \'\'),\n                TR(\'\', \'\', INPUT(_type=\'submit\', _value=\'submit\'))),\n                _action=URL(r=request,args=request.args))\n    if request.vars.csvfile != None:\n        try:\n            import_csv(db[request.vars.table],\n                       request.vars.csvfile.file)\n            response.flash = T(\'data uploaded\')\n        except Exception, e:\n            response.flash = DIV(T(\'unable to parse csv file\'),PRE(str(e)))\n    if form.accepts(request.vars, formname=None):\n#         regex = re.compile(request.args[0] + \'\\.(?P<table>\\w+)\\.id\\>0\')\n        regex = re.compile(request.args[0] + \'\\.(?P<table>\\w+)\\..+\')\n\n        match = regex.match(form.vars.query.strip())\n        if match:\n            table = match.group(\'table\')\n        try:\n            nrows = db(query).count()\n            if form.vars.update_check and form.vars.update_fields:\n                db(query).update(**eval_in_global_env(\'dict(%s)\'\n                                  % form.vars.update_fields))\n                response.flash = T(\'%s rows updated\', nrows)\n            elif form.vars.delete_check:\n                db(query).delete()\n                response.flash = T(\'%s rows deleted\', nrows)\n            nrows = db(query).count()\n            if orderby:\n                rows = db(query,ignore_common_filters=True).select(limitby=(start, stop), orderby=eval_in_global_env(orderby))\n            else:\n                rows = db(query,ignore_common_filters=True).select(limitby=(start, stop))\n        except Exception, e:\n            (rows, nrows) = ([], 0)\n            response.flash = DIV(T(\'Invalid Query\'),PRE(str(e)))\n    return dict(\n        form=form,\n        table=table,\n        start=start,\n        stop=stop,\n        nrows=nrows,\n        rows=rows,\n        query=request.vars.query,\n        )\n\n\n# ##########################################################\n# ## edit delete one record\n# ###########################################################\n\n\ndef update():\n    (db, table) = get_table(request)\n    keyed = hasattr(db[table],\'_primarykey\')\n    record = None\n    if keyed:\n        key = [f for f in request.vars if f in db[table]._primarykey]\n        if key:\n            record = db(db[table][key[0]] == request.vars[key[0]], ignore_common_filters=True).select().first()\n    else:\n        record = db(db[table].id == request.args(2),ignore_common_filters=True).select().first()\n\n    if not record:\n        qry = query_by_table_type(table, db)\n        session.flash = T(\'record does not exist\')\n        redirect(URL(\'select\', args=request.args[:1],\n                     vars=dict(query=qry)))\n\n    if keyed:\n        for k in db[table]._primarykey:\n            db[table][k].writable=False\n\n    form = SQLFORM(db[table], record, deletable=True, delete_label=T(\'Check to delete\'),\n                   ignore_rw=ignore_rw and not keyed,\n                   linkto=URL(\'select\',\n                   args=request.args[:1]), upload=URL(r=request,\n                   f=\'download\', args=request.args[:1]))\n\n    if form.accepts(request.vars, session):\n        session.flash = T(\'done!\')\n        qry = query_by_table_type(table, db)\n        redirect(URL(\'select\', args=request.args[:1],\n                 vars=dict(query=qry)))\n    return dict(form=form,table=db[table])\n\n\n# ##########################################################\n# ## get global variables\n# ###########################################################\n\n\ndef state():\n    return dict()\n\ndef ccache():\n    form = FORM(\n        P(TAG.BUTTON("Clear CACHE?", _type="submit", _name="yes", _value="yes")),\n        P(TAG.BUTTON("Clear RAM", _type="submit", _name="ram", _value="ram")),\n        P(TAG.BUTTON("Clear DISK", _type="submit", _name="disk", _value="disk")),\n    )\n\n    if form.accepts(request.vars, session):\n        clear_ram = False\n        clear_disk = False\n        session.flash = ""\n        if request.vars.yes:\n            clear_ram = clear_disk = True\n        if request.vars.ram:\n            clear_ram = True\n        if request.vars.disk:\n            clear_disk = True\n\n        if clear_ram:\n            cache.ram.clear()\n            session.flash += "Ram Cleared "\n        if clear_disk:\n            cache.disk.clear()\n            session.flash += "Disk Cleared"\n\n        redirect(URL(r=request))\n\n    try:\n        from guppy import hpy; hp=hpy()\n    except ImportError:\n        hp = False\n\n    import shelve, os, copy, time, math\n    from gluon import portalocker\n\n    ram = {\n        \'entries\': 0,\n        \'bytes\': 0,\n        \'objects\': 0,\n        \'hits\': 0,\n        \'misses\': 0,\n        \'ratio\': 0,\n        \'oldest\': time.time(),\n        \'keys\': []\n    }\n    disk = copy.copy(ram)\n    total = copy.copy(ram)\n    disk[\'keys\'] = []\n    total[\'keys\'] = []\n\n    def GetInHMS(seconds):\n        hours = math.floor(seconds / 3600)\n        seconds -= hours * 3600\n        minutes = math.floor(seconds / 60)\n        seconds -= minutes * 60\n        seconds = math.floor(seconds)\n\n        return (hours, minutes, seconds)\n\n    for key, value in cache.ram.storage.items():\n        if isinstance(value, dict):\n            ram[\'hits\'] = value[\'hit_total\'] - value[\'misses\']\n            ram[\'misses\'] = value[\'misses\']\n            try:\n                ram[\'ratio\'] = ram[\'hits\'] * 100 / value[\'hit_total\']\n            except (KeyError, ZeroDivisionError):\n                ram[\'ratio\'] = 0\n        else:\n            if hp:\n                ram[\'bytes\'] += hp.iso(value[1]).size\n                ram[\'objects\'] += hp.iso(value[1]).count\n            ram[\'entries\'] += 1\n            if value[0] < ram[\'oldest\']:\n                ram[\'oldest\'] = value[0]\n            ram[\'keys\'].append((key, GetInHMS(time.time() - value[0])))\n\n    locker = open(os.path.join(request.folder,\n                                        \'cache/cache.lock\'), \'a\')\n    portalocker.lock(locker, portalocker.LOCK_EX)\n    disk_storage = shelve.open(os.path.join(request.folder, \'cache/cache.shelve\'))\n    try:\n        for key, value in disk_storage.items():\n            if isinstance(value, dict):\n                disk[\'hits\'] = value[\'hit_total\'] - value[\'misses\']\n                disk[\'misses\'] = value[\'misses\']\n                try:\n                    disk[\'ratio\'] = disk[\'hits\'] * 100 / value[\'hit_total\']\n                except (KeyError, ZeroDivisionError):\n                    disk[\'ratio\'] = 0\n            else:\n                if hp:\n                    disk[\'bytes\'] += hp.iso(value[1]).size\n                    disk[\'objects\'] += hp.iso(value[1]).count\n                disk[\'entries\'] += 1\n                if value[0] < disk[\'oldest\']:\n                    disk[\'oldest\'] = value[0]\n                disk[\'keys\'].append((key, GetInHMS(time.time() - value[0])))\n\n    finally:\n        portalocker.unlock(locker)\n        locker.close()\n        disk_storage.close()\n\n    total[\'entries\'] = ram[\'entries\'] + disk[\'entries\']\n    total[\'bytes\'] = ram[\'bytes\'] + disk[\'bytes\']\n    total[\'objects\'] = ram[\'objects\'] + disk[\'objects\']\n    total[\'hits\'] = ram[\'hits\'] + disk[\'hits\']\n    total[\'misses\'] = ram[\'misses\'] + disk[\'misses\']\n    total[\'keys\'] = ram[\'keys\'] + disk[\'keys\']\n    try:\n        total[\'ratio\'] = total[\'hits\'] * 100 / (total[\'hits\'] + total[\'misses\'])\n    except (KeyError, ZeroDivisionError):\n        total[\'ratio\'] = 0\n\n    if disk[\'oldest\'] < ram[\'oldest\']:\n        total[\'oldest\'] = disk[\'oldest\']\n    else:\n        total[\'oldest\'] = ram[\'oldest\']\n\n    ram[\'oldest\'] = GetInHMS(time.time() - ram[\'oldest\'])\n    disk[\'oldest\'] = GetInHMS(time.time() - disk[\'oldest\'])\n    total[\'oldest\'] = GetInHMS(time.time() - total[\'oldest\'])\n\n    def key_table(keys):\n        return TABLE(\n            TR(TD(B(\'Key\')), TD(B(\'Time in Cache (h:m:s)\'))),\n            *[TR(TD(k[0]), TD(\'%02d:%02d:%02d\' % k[1])) for k in keys],\n            **dict(_class=\'cache-keys\',\n                   _style="border-collapse: separate; border-spacing: .5em;"))\n\n    ram[\'keys\'] = key_table(ram[\'keys\'])\n    disk[\'keys\'] = key_table(disk[\'keys\'])\n    total[\'keys\'] = key_table(total[\'keys\'])\n\n    return dict(form=form, total=total,\n                ram=ram, disk=disk, object_stats=hp != False)\n\n\n\n\nresponse._vars=response._caller(insert)\n'
+p7
+sS'snapshot'
+p8
+(dp9
+S'exception'
+p10
+(dp11
+S'__hash__'
+p12
+S"<method-wrapper '__hash__' of exceptions.AttributeError object>"
+p13
+sS'__setattr__'
+p14
+S"<method-wrapper '__setattr__' of exceptions.AttributeError object>"
+p15
+sS'__reduce_ex__'
+p16
+S'<built-in method __reduce_ex__ of exceptions.AttributeError object>'
+p17
+sS'__getslice__'
+p18
+S"<method-wrapper '__getslice__' of exceptions.AttributeError object>"
+p19
+sS'__getitem__'
+p20
+S"<method-wrapper '__getitem__' of exceptions.AttributeError object>"
+p21
+sS'__setstate__'
+p22
+S'<built-in method __setstate__ of exceptions.AttributeError object>'
+p23
+sS'__reduce__'
+p24
+S'<built-in method __reduce__ of exceptions.AttributeError object>'
+p25
+sS'__str__'
+p26
+S"<method-wrapper '__str__' of exceptions.AttributeError object>"
+p27
+sS'__format__'
+p28
+S'<built-in method __format__ of exceptions.AttributeError object>'
+p29
+sS'__getattribute__'
+p30
+S"<method-wrapper '__getattribute__' of exceptions.AttributeError object>"
+p31
+sS'__class__'
+p32
+S"<type 'exceptions.AttributeError'>"
+p33
+sS'__unicode__'
+p34
+S'<built-in method __unicode__ of exceptions.AttributeError object>'
+p35
+sS'__delattr__'
+p36
+S"<method-wrapper '__delattr__' of exceptions.AttributeError object>"
+p37
+sS'__subclasshook__'
+p38
+S'<built-in method __subclasshook__ of type object>'
+p39
+sS'__repr__'
+p40
+S"<method-wrapper '__repr__' of exceptions.AttributeError object>"
+p41
+sS'args'
+p42
+S'("\'DAL\' object has no attribute \'ciudad\'",)'
+p43
+sS'__dict__'
+p44
+S'{}'
+p45
+sS'__sizeof__'
+p46
+S'<built-in method __sizeof__ of exceptions.AttributeError object>'
+p47
+sS'__doc__'
+p48
+S"'Attribute not found.'"
+p49
+sS'__init__'
+p50
+S"<method-wrapper '__init__' of exceptions.AttributeError object>"
+p51
+sS'__new__'
+p52
+S'<built-in method __new__ of type object>'
+p53
+ssS'evalue'
+p54
+S"'DAL' object has no attribute 'ciudad'"
+p55
+sS'request'
+p56
+cgluon.html
+XML_unpickle
+p57
+(S'sN[\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top;">ajax</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">application</td><td style="vertical-align:top;">:</td><td><div>FINAL</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">args</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>db</div></td></tr><tr><td><div>auth_user</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">cid</td><td style="vertical-align:top;">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">client</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">controller</td><td style="vertical-align:top;">:</td><td><div>appadmin</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">cookies</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">session_id_admin</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1-11633506-a972-4fc1-a78a-a7cf7b24fdd2<table><tr><td style="font-weight:bold;vertical-align:top;">comment</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">domain</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">expires</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">httponly</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">max-age</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">path</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">secure</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">version</td><td style="vertical-align:top;">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_id_final</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1-78f48e96-f0ac-4301-a796-c2d6562db76a<table><tr><td style="font-weight:bold;vertical-align:top;">comment</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">domain</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">expires</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">httponly</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">max-age</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">path</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">secure</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">version</td><td style="vertical-align:top;">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_id_welcome</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1-fb76716b-6acf-49e4-8ed1-8780ccb46ae4<table><tr><td style="font-weight:bold;vertical-align:top;">comment</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">domain</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">expires</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">httponly</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">max-age</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">path</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">secure</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">version</td><td style="vertical-align:top;">:</td><td><div></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">env</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">HTTP_ACCEPT</td><td style="vertical-align:top;">:</td><td><div>text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_ACCEPT_ENCODING</td><td style="vertical-align:top;">:</td><td><div>gzip, deflate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_ACCEPT_LANGUAGE</td><td style="vertical-align:top;">:</td><td><div>en-US,en;q=0.5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_CONNECTION</td><td style="vertical-align:top;">:</td><td><div>keep-alive</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_COOKIE</td><td style="vertical-align:top;">:</td><td><div>session_id_welcome=127.0.0.1-fb76716b-6acf-49e4-8ed1-8780ccb46ae4; session_id_admin=127.0.0.1-11633506-a972-4fc1-a78a-a7cf7b24fdd2; session_id_final=127.0.0.1-78f48e96-f0ac-4301-a796-c2d6562db76a</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_HOST</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1:8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_REFERER</td><td style="vertical-align:top;">:</td><td><div>http://127.0.0.1:8000/FINAL/appadmin/index</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_UPGRADE_INSECURE_REQUESTS</td><td style="vertical-align:top;">:</td><td><div>1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_USER_AGENT</td><td style="vertical-align:top;">:</td><td><div>Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:50.0) Gecko/20100101 Firefox/50.0</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">PATH_INFO</td><td style="vertical-align:top;">:</td><td><div>/FINAL/appadmin/insert/db/auth_user</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">QUERY_STRING</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">REMOTE_ADDR</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">REMOTE_PORT</td><td style="vertical-align:top;">:</td><td><div>56375</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">REQUEST_METHOD</td><td style="vertical-align:top;">:</td><td><div>GET</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">SCRIPT_NAME</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">SERVER_NAME</td><td style="vertical-align:top;">:</td><td><div>angel-Cantiga-ICH9M-Chipset</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">SERVER_PORT</td><td style="vertical-align:top;">:</td><td><div>8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">SERVER_PROTOCOL</td><td style="vertical-align:top;">:</td><td><div>HTTP/1.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">SERVER_SOFTWARE</td><td style="vertical-align:top;">:</td><td><div>Rocket 1.2.6</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">app_folders</td><td style="vertical-align:top;">:</td><td><div>set([&#x27;/home/angel/web2py/applications/welcome/&#x27;, &#x27;/home/angel/web2py/applications/admin/&#x27;, &#x27;/home/angel/web2py/applications/FINAL/&#x27;])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">applications_parent</td><td style="vertical-align:top;">:</td><td><div>/home/angel/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">cmd_args</td><td style="vertical-align:top;">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">cmd_options</td><td style="vertical-align:top;">:</td><td><div>&lt;Values at 0xb536dcec: {&#x27;verbose&#x27;: False, &#x27;ip&#x27;: &#x27;127.0.0.1&#x27;, &#x27;debuglevel&#x27;: 30, &#x27;with_scheduler&#x27;: False, &#x27;shutdown_timeout&#x27;: 5, &#x27;taskbar&#x27;: False, &#x27;with_coverage&#x27;: False, &#x27;pid_filename&#x27;: &#x27;httpserver.pid&#x27;, &#x27;maxthreads&#x27;: None, &#x27;softcron&#x27;: False, &#x27;server_name&#x27;: &#x27;angel-Cantiga-ICH9M-Chipset&#x27;, &#x27;bpython&#x27;: False, &#x27;nogui&#x27;: False, &#x27;port&#x27;: 8000, &#x27;print_errors&#x27;: False, &#x27;extcron&#x27;: False, &#x27;runcron&#x27;: False, &#x27;run_system_tests&#x27;: False, &#x27;test&#x27;: None, &#x27;folder&#x27;: &#x27;/home/angel/web2py&#x27;, &#x27;config&#x27;: &#x27;&#x27;, &#x27;minthreads&#x27;: None, &#x27;shell&#x27;: None, &#x27;run&#x27;: &#x27;&#x27;, &#x27;log_filename&#x27;: &#x27;httpserver.log&#x27;, &#x27;profiler_dir&#x27;: None, &#x27;args&#x27;: [&#x27;&#x27;], &#x27;socket_timeout&#x27;: 5, &#x27;ssl_ca_certificate&#x27;: None, &#x27;scheduler&#x27;: None, &#x27;interfaces&#x27;: None, &#x27;ssl_private_key&#x27;: &#x27;&#x27;, &#x27;gae&#x27;: None, &#x27;password&#x27;: &#x27;******&#x27;, &#x27;request_queue_size&#x27;: 5, &#x27;ssl_certificate&#x27;: &#x27;&#x27;, &#x27;cronjob&#x27;: False, &#x27;numthreads&#x27;: None, &#x27;quiet&#x27;: False, &#x27;import_models&#x27;: False, &#x27;timeout&#x27;: 10, &#x27;plain&#x27;: False, &#x27;nobanner&#x27;: False}&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">db_sessions</td><td style="vertical-align:top;">:</td><td><div>set([])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">debugging</td><td style="vertical-align:top;">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">gluon_parent</td><td style="vertical-align:top;">:</td><td><div>/home/angel/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_accept</td><td style="vertical-align:top;">:</td><td><div>text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_accept_encoding</td><td style="vertical-align:top;">:</td><td><div>gzip, deflate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_accept_language</td><td style="vertical-align:top;">:</td><td><div>en-US,en;q=0.5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_connection</td><td style="vertical-align:top;">:</td><td><div>keep-alive</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_cookie</td><td style="vertical-align:top;">:</td><td><div>session_id_welcome=127.0.0.1-fb76716b-6acf-49e4-8ed1-8780ccb46ae4; session_id_admin=127.0.0.1-11633506-a972-4fc1-a78a-a7cf7b24fdd2; session_id_final=127.0.0.1-78f48e96-f0ac-4301-a796-c2d6562db76a</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_host</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1:8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_referer</td><td style="vertical-align:top;">:</td><td><div>http://127.0.0.1:8000/FINAL/appadmin/index</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_upgrade_insecure_requests</td><td style="vertical-align:top;">:</td><td><div>1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_user_agent</td><td style="vertical-align:top;">:</td><td><div>Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:50.0) Gecko/20100101 Firefox/50.0</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_jython</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_pypy</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_source</td><td style="vertical-align:top;">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">local_hosts</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>::1</div></td></tr><tr><td><div>127.0.1.1</div></td></tr><tr><td><div>angel-Cantiga-ICH9M-Chipset</div></td></tr><tr><td><div>::ffff:127.0.0.1</div></td></tr><tr><td><div>127.0.0.1</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">path_info</td><td style="vertical-align:top;">:</td><td><div>/FINAL/appadmin/insert/db/auth_user</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">query_string</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">remote_addr</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">remote_port</td><td style="vertical-align:top;">:</td><td><div>56375</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">request_method</td><td style="vertical-align:top;">:</td><td><div>GET</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">request_uri</td><td style="vertical-align:top;">:</td><td><div>/FINAL/appadmin/insert/db/auth_user</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">script_name</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">server_name</td><td style="vertical-align:top;">:</td><td><div>angel-Cantiga-ICH9M-Chipset</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">server_port</td><td style="vertical-align:top;">:</td><td><div>8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">server_protocol</td><td style="vertical-align:top;">:</td><td><div>HTTP/1.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">server_software</td><td style="vertical-align:top;">:</td><td><div>Rocket 1.2.6</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">web2py_path</td><td style="vertical-align:top;">:</td><td><div>/home/angel/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">web2py_version</td><td style="vertical-align:top;">:</td><td><div>2.14.6-stable+timestamp.2016.05.10.00.21.47</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.errors</td><td style="vertical-align:top;">:</td><td><div>&lt;open file &#x27;&lt;stderr&gt;&#x27;, mode &#x27;w&#x27; at 0xb74c70d0&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.file_wrapper</td><td style="vertical-align:top;">:</td><td><div>&lt;class wsgiref.util.FileWrapper at 0xb6199fbc&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.input</td><td style="vertical-align:top;">:</td><td><div>&lt;socket._fileobject object at 0xada6ee2c&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.multiprocess</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.multithread</td><td style="vertical-align:top;">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.run_once</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.url_scheme</td><td style="vertical-align:top;">:</td><td><div>http</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.version</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>1</div></td></tr><tr><td><div>0</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_errors</td><td style="vertical-align:top;">:</td><td><div>&lt;open file &#x27;&lt;stderr&gt;&#x27;, mode &#x27;w&#x27; at 0xb74c70d0&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_file_wrapper</td><td style="vertical-align:top;">:</td><td><div>&lt;class wsgiref.util.FileWrapper at 0xb6199fbc&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_input</td><td style="vertical-align:top;">:</td><td><div>&lt;socket._fileobject object at 0xada6ee2c&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_multiprocess</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_multithread</td><td style="vertical-align:top;">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_run_once</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_url_scheme</td><td style="vertical-align:top;">:</td><td><div>http</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_version</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>1</div></td></tr><tr><td><div>0</div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">extension</td><td style="vertical-align:top;">:</td><td><div>html</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">folder</td><td style="vertical-align:top;">:</td><td><div>/home/angel/web2py/applications/FINAL/</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">function</td><td style="vertical-align:top;">:</td><td><div>insert</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">global_settings</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">app_folders</td><td style="vertical-align:top;">:</td><td><div>set([&#x27;/home/angel/web2py/applications/welcome/&#x27;, &#x27;/home/angel/web2py/applications/admin/&#x27;, &#x27;/home/angel/web2py/applications/FINAL/&#x27;])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">applications_parent</td><td style="vertical-align:top;">:</td><td><div>/home/angel/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">cmd_args</td><td style="vertical-align:top;">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">cmd_options</td><td style="vertical-align:top;">:</td><td><div>&lt;Values at 0xb536dcec: {&#x27;verbose&#x27;: False, &#x27;ip&#x27;: &#x27;127.0.0.1&#x27;, &#x27;debuglevel&#x27;: 30, &#x27;with_scheduler&#x27;: False, &#x27;shutdown_timeout&#x27;: 5, &#x27;taskbar&#x27;: False, &#x27;with_coverage&#x27;: False, &#x27;pid_filename&#x27;: &#x27;httpserver.pid&#x27;, &#x27;maxthreads&#x27;: None, &#x27;softcron&#x27;: False, &#x27;server_name&#x27;: &#x27;angel-Cantiga-ICH9M-Chipset&#x27;, &#x27;bpython&#x27;: False, &#x27;nogui&#x27;: False, &#x27;port&#x27;: 8000, &#x27;print_errors&#x27;: False, &#x27;extcron&#x27;: False, &#x27;runcron&#x27;: False, &#x27;run_system_tests&#x27;: False, &#x27;test&#x27;: None, &#x27;folder&#x27;: &#x27;/home/angel/web2py&#x27;, &#x27;config&#x27;: &#x27;&#x27;, &#x27;minthreads&#x27;: None, &#x27;shell&#x27;: None, &#x27;run&#x27;: &#x27;&#x27;, &#x27;log_filename&#x27;: &#x27;httpserver.log&#x27;, &#x27;profiler_dir&#x27;: None, &#x27;args&#x27;: [&#x27;&#x27;], &#x27;socket_timeout&#x27;: 5, &#x27;ssl_ca_certificate&#x27;: None, &#x27;scheduler&#x27;: None, &#x27;interfaces&#x27;: None, &#x27;ssl_private_key&#x27;: &#x27;&#x27;, &#x27;gae&#x27;: None, &#x27;password&#x27;: &#x27;******&#x27;, &#x27;request_queue_size&#x27;: 5, &#x27;ssl_certificate&#x27;: &#x27;&#x27;, &#x27;cronjob&#x27;: False, &#x27;numthreads&#x27;: None, &#x27;quiet&#x27;: False, &#x27;import_models&#x27;: False, &#x27;timeout&#x27;: 10, &#x27;plain&#x27;: False, &#x27;nobanner&#x27;: False}&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">db_sessions</td><td style="vertical-align:top;">:</td><td><div>set([])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">debugging</td><td style="vertical-align:top;">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">gluon_parent</td><td style="vertical-align:top;">:</td><td><div>/home/angel/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_jython</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_pypy</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_source</td><td style="vertical-align:top;">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">local_hosts</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>::1</div></td></tr><tr><td><div>127.0.1.1</div></td></tr><tr><td><div>angel-Cantiga-ICH9M-Chipset</div></td></tr><tr><td><div>::ffff:127.0.0.1</div></td></tr><tr><td><div>127.0.0.1</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">web2py_version</td><td style="vertical-align:top;">:</td><td><div>2.14.6-stable+timestamp.2016.05.10.00.21.47</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_https</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_local</td><td style="vertical-align:top;">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_restful</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_scheduler</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_shell</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">now</td><td style="vertical-align:top;">:</td><td><div>datetime.datetime(2016, 12, 21, 18, 30, 54, 439627)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">raw_args</td><td style="vertical-align:top;">:</td><td><div>db/auth_user</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">raw_extension</td><td style="vertical-align:top;">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">url</td><td style="vertical-align:top;">:</td><td><div>/FINAL/appadmin/insert/db/auth_user</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">utcnow</td><td style="vertical-align:top;">:</td><td><div>datetime.datetime(2016, 12, 21, 21, 30, 54, 439670)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi</td><td style="vertical-align:top;">:</td><td><div>&lt;gluon.main.LazyWSGI object at 0xad5c148c&gt;</div></td></tr></table></div>'
+tRp58
+sS'frames'
+p59
+(lp60
+(dp61
+S'file'
+p62
+S'/home/angel/web2py/gluon/restricted.py'
+p63
+sS'dump'
+p64
+(dp65
+S'environment'
+p66
+S"{'A': <class 'gluon.html.A'>, 'ACTIVITY_CATEGORIES': ['acad\\xc3\\xa9mico', 'caso de estudio', 'ciencia', 'cli', 'comunidad', 'core', 'educaci\\xc3\\xb3n', 'fomento', 'gui', 'herramientas', 'juegos', 'lenguaje', 'moviles', 'py3k', 'redes', 'seguridad', 'testing', 'web'], 'ACTIVITY_DURATION': {'poster': 0, 'talk': 45, 'tutorial': 120}, 'ACTIVITY_LEVELS': ('Beginner', 'Intermediate', 'Advanced'), 'ACTIVITY_ROOMS': {1: '5-6-7-8', 2: '9-10', 3: '13+14', 4: '31', 5: '35', 6: '32'}, 'ACTIVITY_SHOW_DESCRIPTION': False, 'ACTIVITY_TYPES': ('keynote', 'panel', 'plenary', 'tutorial', 'talk', 'poster', 'startup', 'stand', 'summit', 'open-space', 'social', 'break', 'lightning talk'), 'ANY_OF': <class 'gluon.validators.ANY_OF'>, 'ASSIGNJS': <function ASSIGNJS>, 'ATTENDEE_TYPES': (('gratis', <lazyT 'Gratuito, $0'>),), ...}"
+p67
+sS'ccode'
+p68
+S'<code object <module> at 0xad1cb380, file "/home...lications/FINAL/controllers/appadmin.py", line 7>'
+p69
+ssS'lnum'
+p70
+I227
+sS'lines'
+p71
+(dp72
+I224
+S'            ccode = code'
+p73
+sI225
+S'        else:'
+p74
+sI226
+S'            ccode = compile2(code, layer)'
+p75
+sI227
+S'        exec ccode in environment'
+p76
+sI228
+S'    except HTTP:'
+p77
+sI229
+S'        raise'
+p78
+sI230
+S'    except RestrictedError:'
+p79
+sI231
+S'        # do not encapsulate (obfuscate) the original RestrictedError'
+p80
+sI222
+S'    try:'
+p81
+sI223
+S'        if isinstance(code, types.CodeType):'
+p82
+ssS'call'
+p83
+S"(code='# -*- coding: utf-8 -*-\\n\\n# #####################...lse)\\n\\n\\n\\n\\nresponse._vars=response._caller(insert)\\n', environment={'A': <class 'gluon.html.A'>, 'ACTIVITY_CATEGORIES': ['acad\\xc3\\xa9mico', 'caso de estudio', 'ciencia', 'cli', 'comunidad', 'core', 'educaci\\xc3\\xb3n', 'fomento', 'gui', 'herramientas', 'juegos', 'lenguaje', 'moviles', 'py3k', 'redes', 'seguridad', 'testing', 'web'], 'ACTIVITY_DURATION': {'poster': 0, 'talk': 45, 'tutorial': 120}, 'ACTIVITY_LEVELS': ('Beginner', 'Intermediate', 'Advanced'), 'ACTIVITY_ROOMS': {1: '5-6-7-8', 2: '9-10', 3: '13+14', 4: '31', 5: '35', 6: '32'}, 'ACTIVITY_SHOW_DESCRIPTION': False, 'ACTIVITY_TYPES': ('keynote', 'panel', 'plenary', 'tutorial', 'talk', 'poster', 'startup', 'stand', 'summit', 'open-space', 'social', 'break', 'lightning talk'), 'ANY_OF': <class 'gluon.validators.ANY_OF'>, 'ASSIGNJS': <function ASSIGNJS>, 'ATTENDEE_TYPES': (('gratis', <lazyT 'Gratuito, $0'>),), ...}, layer='/home/angel/web2py/applications/FINAL/controllers/appadmin.py')"
+p84
+sS'func'
+p85
+S'restricted'
+p86
+sa(dp87
+g62
+S'/home/angel/web2py/applications/FINAL/controllers/appadmin.py'
+p88
+sg64
+(dp89
+sg70
+I433
+sg71
+(dp90
+I422
+S''
+sI423
+S"    ram['keys'] = key_table(ram['keys'])"
+p91
+sI424
+S"    disk['keys'] = key_table(disk['keys'])"
+p92
+sI425
+S"    total['keys'] = key_table(total['keys'])"
+p93
+sI426
+S''
+sI427
+S'    return dict(form=form, total=total,'
+p94
+sI428
+S'                ram=ram, disk=disk, object_stats=hp != False)'
+p95
+sI429
+S''
+sI430
+S''
+sI431
+S''
+ssg83
+S'()'
+p96
+sg85
+S'<module>'
+p97
+sa(dp98
+g62
+S'/home/angel/web2py/gluon/globals.py'
+p99
+sg64
+(dp100
+S'self'
+p101
+S'undefined'
+p102
+sS'f'
+S'<function insert>'
+p103
+ssg70
+I417
+sg71
+(dp104
+I416
+S'        self._vars = None'
+p105
+sI417
+S'        self._caller = lambda f: f()'
+p106
+sI418
+S'        self._view_environment = None'
+p107
+sI419
+S'        self._custom_commit = None'
+p108
+sI420
+S'        self._custom_rollback = None'
+p109
+sI421
+S"        self.generic_patterns = ['*']"
+p110
+sI412
+S"        self.flash = ''            # used by the default view layout"
+p111
+sI413
+S'        self.meta = Storage()      # used by web2py_ajax.html'
+p112
+sI414
+S'        self.menu = []             # used by the default view layout'
+p113
+sI415
+S'        self.files = []            # used by web2py_ajax.html'
+p114
+ssg83
+S'(f=<function insert>)'
+p115
+sg85
+S'<lambda>'
+p116
+sa(dp117
+g62
+S'/home/angel/web2py/applications/FINAL/controllers/appadmin.py'
+p118
+sg64
+(dp119
+S'global SQLFORM'
+p120
+S"<class 'gluon.sqlhtml.SQLFORM'>"
+p121
+sS'db'
+p122
+S'<DAL uri="sqlite://storage.sqlite">'
+p123
+sS'global ignore_rw'
+p124
+S'True'
+p125
+sS'form'
+p126
+g102
+sS'table'
+p127
+S"'auth_user'"
+p128
+ssg70
+I127
+sg71
+(dp129
+I128
+S'    if form.accepts(request.vars, session):'
+p130
+sI129
+S"        response.flash = T('new record inserted')"
+p131
+sI130
+S'    return dict(form=form,table=db[table])'
+p132
+sI131
+S''
+sI122
+S'# ###########################################################'
+p133
+sI123
+S''
+sI124
+S''
+sI125
+S'def insert():'
+p134
+sI126
+S'    (db, table) = get_table(request)'
+p135
+sI127
+S'    form = SQLFORM(db[table], ignore_rw=ignore_rw)'
+p136
+ssg83
+S'()'
+p137
+sg85
+S'insert'
+p138
+sa(dp139
+g62
+S'/home/angel/web2py/gluon/sqlhtml.py'
+p140
+sg64
+(dp141
+S'default'
+p142
+S'None'
+p143
+sS'self.widgets.options.widget'
+p144
+S"<bound method type.widget of <class 'gluon.sqlhtml.OptionsWidget'>>"
+p145
+sS'self'
+p146
+S'<gluon.sqlhtml.SQLFORM object>'
+p147
+sS'inp'
+p148
+S'<gluon.html.INPUT object>'
+p149
+sS'self.widgets'
+p150
+S"<Storage {'multiple': <class 'gluon.sqlhtml.Mult...ss 'gluon.sqlhtml.OptionsWidget'>, 'blob': None}>"
+p151
+sS'field'
+p152
+S'<pydal.objects.Field object>'
+p153
+sS'self.widgets.options'
+p154
+S"<class 'gluon.sqlhtml.OptionsWidget'>"
+p155
+ssg70
+I1295
+sg71
+(dp156
+I1290
+S"                    inpval = 'checked'"
+p157
+sI1291
+S'                else:'
+p158
+sI1292
+S"                    inpval = ''"
+p159
+sI1293
+S'            elif OptionsWidget.has_options(field):'
+p160
+sI1294
+S'                if not field.requires.multiple:'
+p161
+sI1295
+S'                    inp = self.widgets.options.widget(field, default)'
+p162
+sI1296
+S'                else:'
+p163
+sI1297
+S'                    inp = self.widgets.multiple.widget(field, default)'
+p164
+sI1298
+S'                if fieldname in keepopts:'
+p165
+sI1299
+S'                    inpval = CAT(*inp.components)'
+p166
+ssg83
+S"(self=<gluon.sqlhtml.SQLFORM object>, table=<Table auth_user (id, first_name, last_name, ema...ration_key, reset_password_key, registration_id)>, record=None, deletable=False, linkto=None, upload=None, fields=['id', 'first_name', 'last_name', 'email', 'password', 'dni', 'cod_cli', 'fecha_alta', 'CUIT_CLIENTES', 'tipo_client_responsable', 'TIPO_EMPRESA', 'fecha_nacimiento', 'ciudad', 'calle', 'nro_calle', 'entrecalle1', 'entrecalle2', 'telefono', 'registration_key', 'reset_password_key', ...], labels=None, col3={}, submit_button='Submit', delete_label='Check to delete', showid=True, readonly=False, comments=True, keepopts=[], ignore_rw=True, record_id=None, formstyle=None, buttons=['submit'], separator=None, extra_fields=[], **attributes={})"
+p167
+sg85
+g50
+sa(dp168
+g62
+S'/home/angel/web2py/gluon/sqlhtml.py'
+p169
+sg64
+(dp170
+S'].options'
+p171
+g102
+sS'requires'
+p172
+S'[<gluon.validators.IS_IN_DB object>]'
+p173
+sS'options'
+p174
+g102
+ssg70
+I313
+sg71
+(dp175
+I308
+S'        requires = field.requires'
+p176
+sI309
+S'        if not isinstance(requires, (list, tuple)):'
+p177
+sI310
+S'            requires = [requires]'
+p178
+sI311
+S'        if requires:'
+p179
+sI312
+S"            if hasattr(requires[0], 'options'):"
+p180
+sI313
+S'                options = requires[0].options()'
+p181
+sI314
+S'            else:'
+p182
+sI315
+S'                raise SyntaxError('
+p183
+sI316
+S"                    'widget cannot determine options of %s' % field)"
+p184
+sI317
+S'        opts = [OPTION(v, _value=k) for (k, v) in options]'
+p185
+ssg83
+S"(cls=<class 'gluon.sqlhtml.OptionsWidget'>, field=<pydal.objects.Field object>, value=None, **attributes={})"
+p186
+sg85
+S'widget'
+p187
+sa(dp188
+g62
+S'/home/angel/web2py/gluon/validators.py'
+p189
+sg64
+(dp190
+S'self'
+p191
+S'<gluon.validators.IS_IN_DB object>'
+p192
+sS'self.build_set'
+p193
+S'<bound method IS_IN_DB.build_set of <gluon.validators.IS_IN_DB object>>'
+p194
+ssg70
+I598
+sg71
+(dp195
+I593
+S'            self.labels = [self.label % r for r in records]'
+p196
+sI594
+S'        else:'
+p197
+sI595
+S'            self.labels = [self.label(r) for r in records]'
+p198
+sI596
+S''
+sI597
+S'    def options(self, zero=True):'
+p199
+sI598
+S'        self.build_set()'
+p200
+sI599
+S'        items = [(k, self.labels[i]) for (i, k) in enumerate(self.theset)]'
+p201
+sI600
+S'        if self.sort:'
+p202
+sI601
+S'            items.sort(options_sorter)'
+p203
+sI602
+S'        if zero and self.zero is not None and not self.multiple:'
+p204
+ssg83
+S'(self=<gluon.validators.IS_IN_DB object>, zero=True)'
+p205
+sg85
+S'options'
+p206
+sa(dp207
+g62
+S'/home/angel/web2py/gluon/validators.py'
+p208
+sg64
+(dp209
+S'self.dbset'
+p210
+S'<Set None>'
+p211
+sS'table'
+p212
+g102
+sS'self'
+p213
+S'<gluon.validators.IS_IN_DB object>'
+p214
+sS'self.dbset.db'
+p215
+S'<DAL uri="sqlite://storage.sqlite">'
+p216
+sS'self.ktable'
+p217
+S"'ciudad'"
+p218
+ssg70
+I569
+sg71
+(dp219
+I564
+S'    def set_self_id(self, id):'
+p220
+sI565
+S'        if self._and:'
+p221
+sI566
+S'            self._and.record_id = id'
+p222
+sI567
+S''
+sI568
+S'    def build_set(self):'
+p223
+sI569
+S'        table = self.dbset.db[self.ktable]'
+p224
+sI570
+S"        if self.fieldnames == '*':"
+p225
+sI571
+S'            fields = [f for f in table]'
+p226
+sI572
+S'        else:'
+p227
+sI573
+S'            fields = [table[k] for k in self.fieldnames]'
+p228
+ssg83
+S'(self=<gluon.validators.IS_IN_DB object>)'
+p229
+sg85
+S'build_set'
+p230
+sa(dp231
+g62
+S'/home/angel/web2py/gluon/packages/dal/pydal/base.py'
+p232
+sg64
+(dp233
+S'builtinstr'
+p234
+S"<type 'str'>"
+p235
+sS'self.__getattr__'
+p236
+S'<bound method DAL.__getattr__ of <DAL uri="sqlite://storage.sqlite">>'
+p237
+sS'self'
+p238
+S'<DAL uri="sqlite://storage.sqlite">'
+p239
+sS'key'
+p240
+S"'ciudad'"
+p241
+ssg70
+I914
+sg71
+(dp242
+I909
+S'    def __iter__(self):'
+p243
+sI910
+S'        for tablename in self.tables:'
+p244
+sI911
+S'            yield self[tablename]'
+p245
+sI912
+S''
+sI913
+S'    def __getitem__(self, key):'
+p246
+sI914
+S'        return self.__getattr__(str(key))'
+p247
+sI915
+S''
+sI916
+S'    def __getattr__(self, key):'
+p248
+sI917
+S"        if object.__getattribute__(self, '_lazy_tables') and \\"
+p249
+sI918
+S"                key in object.__getattribute__(self, '_LAZY_TABLES'):"
+p250
+ssg83
+S'(self=<DAL uri="sqlite://storage.sqlite">, key=\'ciudad\')'
+p251
+sg85
+g20
+sa(dp252
+g62
+S'/home/angel/web2py/gluon/packages/dal/pydal/base.py'
+p253
+sg64
+(dp254
+S'global BasicStorage'
+p255
+S"<class 'pydal.helpers.classes.BasicStorage'>"
+p256
+sS'self'
+p257
+S'<DAL uri="sqlite://storage.sqlite">'
+p258
+sS'BasicStorage.__getattribute__'
+p259
+S"<slot wrapper '__getattribute__' of 'object' objects>"
+p260
+sS'key'
+p261
+S"'ciudad'"
+p262
+ssg70
+I921
+sg71
+(dp263
+I916
+S'    def __getattr__(self, key):'
+p264
+sI917
+S"        if object.__getattribute__(self, '_lazy_tables') and \\"
+p265
+sI918
+S"                key in object.__getattribute__(self, '_LAZY_TABLES'):"
+p266
+sI919
+S'            tablename, fields, args = self._LAZY_TABLES.pop(key)'
+p267
+sI920
+S'            return self.lazy_define_table(tablename, *fields, **args)'
+p268
+sI921
+S'        return BasicStorage.__getattribute__(self, key)'
+p269
+sI922
+S''
+sI923
+S'    def __setattr__(self, key, value):'
+p270
+sI924
+S"        if key[:1] != '_' and key in self:"
+p271
+sI925
+S'            raise SyntaxError('
+p272
+ssg83
+S'(self=<DAL uri="sqlite://storage.sqlite">, key=\'ciudad\')'
+p273
+sg85
+S'__getattr__'
+p274
+sasS'pyver'
+p275
+S'Python 2.7.6: /usr/bin/python (prefix: /usr)'
+p276
+sS'session'
+p277
+g57
+(S's\xc9\x02\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top;">cart</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">3</td><td style="vertical-align:top;">:</td><td><div>1</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">flash</td><td style="vertical-align:top;">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">last_orderby</td><td style="vertical-align:top;">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">last_query</td><td style="vertical-align:top;">:</td><td><div>db.Armado_de_rutas.id&gt;0</div></td></tr></table></div>'
+tRp278
+sS'etype'
+p279
+S"<type 'exceptions.AttributeError'>"
+p280
+sS'date'
+p281
+S'Wed Dec 21 18:30:54 2016'
+p282
+sS'response'
+p283
+g57
+(S's\xf0 \x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top;">body</td><td style="vertical-align:top;">:</td><td><div>&lt;cStringIO.StringO object at 0xad5b9560&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">cookies</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">session_id_final</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1-78f48e96-f0ac-4301-a796-c2d6562db76a<table><tr><td style="font-weight:bold;vertical-align:top;">comment</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">domain</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">expires</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">httponly</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">max-age</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">path</td><td style="vertical-align:top;">:</td><td><div>/</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">secure</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">version</td><td style="vertical-align:top;">:</td><td><div></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">delimiters</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>{{</div></td></tr><tr><td><div>}}</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">description</td><td style="vertical-align:top;">:</td><td><div>Powered by web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">files</td><td style="vertical-align:top;">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">flash</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">footer</td><td style="vertical-align:top;">:</td><td><div>Conference description&lt;b&gt;dates&lt;/b&gt; city (organized by &lt;a href="#"&gt;users group&lt;/a&gt;). &lt;br/&gt;\nMore info: &lt;a href="#"&gt;blog&lt;/a&gt;&amp;nbsp; Contact: &lt;a href="#"&gt;mail address&lt;/a&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">form_label_separator</td><td style="vertical-align:top;">:</td><td><div>: </div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">formstyle</td><td style="vertical-align:top;">:</td><td><div>table3cols</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">generic_patterns</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>*</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">google_analytics_id</td><td style="vertical-align:top;">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">headers</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">X-Powered-By</td><td style="vertical-align:top;">:</td><td><div>web2py</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">keywords</td><td style="vertical-align:top;">:</td><td><div>python, free software</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">menu</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div><table><tr><td><div>modificar</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>/admin/default/design/FINAL</div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>db</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>/FINAL/appadmin/index</div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>estado</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>/FINAL/appadmin/state</div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>cache</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>/FINAL/appadmin/ccache</div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">meta</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">author</td><td style="vertical-align:top;">:</td><td><div>Your Name &lt;you@example.com&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">copyright</td><td style="vertical-align:top;">:</td><td><div>Copyright 2011</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">description</td><td style="vertical-align:top;">:</td><td><div>a cool new app</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">generator</td><td style="vertical-align:top;">:</td><td><div>Web2py Web Framework</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">keywords</td><td style="vertical-align:top;">:</td><td><div>web2py, python, framework</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">models_to_run</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>^\\w+\\.py$</div></td></tr><tr><td><div>^appadmin/\\w+\\.py$</div></td></tr><tr><td><div>^appadmin/insert/\\w+\\.py$</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">postprocessing</td><td style="vertical-align:top;">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_client</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_cookie_compression_level</td><td style="vertical-align:top;">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_cookie_expires</td><td style="vertical-align:top;">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_data_name</td><td style="vertical-align:top;">:</td><td><div>session_data_final</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_file</td><td style="vertical-align:top;">:</td><td><div>&lt;open file &#x27;/home/angel/web2py/applications/FINAL/sessions/10b/0c4/127.0.0.1-78f48e96-f0ac-4301-a796-c2d6562db76a&#x27;, mode &#x27;rb+&#x27; at 0xad103de0&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_filename</td><td style="vertical-align:top;">:</td><td><div>/home/angel/web2py/applications/FINAL/sessions/127.0.0.1-78f48e96-f0ac-4301-a796-c2d6562db76a</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_hash</td><td style="vertical-align:top;">:</td><td><div>6aba3f0f0ade636280dca5938f4e84f7</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_id</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1-78f48e96-f0ac-4301-a796-c2d6562db76a</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_id_name</td><td style="vertical-align:top;">:</td><td><div>session_id_final</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_locked</td><td style="vertical-align:top;">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_masterapp</td><td style="vertical-align:top;">:</td><td><div>FINAL</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_new</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_storage_type</td><td style="vertical-align:top;">:</td><td><div>file</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">status</td><td style="vertical-align:top;">:</td><td><div>200</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">subtitle</td><td style="vertical-align:top;">:</td><td><div>Adaptame!</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">title</td><td style="vertical-align:top;">:</td><td><div>Final</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">view</td><td style="vertical-align:top;">:</td><td><div>appadmin.html</div></td></tr></table></div>'
+tRp284
+sS'locals'
+p285
+(dp286
+S'self'
+p287
+S'<DAL uri="sqlite://storage.sqlite">'
+p288
+sS'key'
+p289
+S"'ciudad'"
+p290
+sssS'traceback'
+p291
+S'Traceback (most recent call last):\n  File "/home/angel/web2py/gluon/restricted.py", line 227, in restricted\n    exec ccode in environment\n  File "/home/angel/web2py/applications/FINAL/controllers/appadmin.py", line 433, in <module>\n  File "/home/angel/web2py/gluon/globals.py", line 417, in <lambda>\n    self._caller = lambda f: f()\n  File "/home/angel/web2py/applications/FINAL/controllers/appadmin.py", line 127, in insert\n    form = SQLFORM(db[table], ignore_rw=ignore_rw)\n  File "/home/angel/web2py/gluon/sqlhtml.py", line 1295, in __init__\n    inp = self.widgets.options.widget(field, default)\n  File "/home/angel/web2py/gluon/sqlhtml.py", line 313, in widget\n    options = requires[0].options()\n  File "/home/angel/web2py/gluon/validators.py", line 598, in options\n    self.build_set()\n  File "/home/angel/web2py/gluon/validators.py", line 569, in build_set\n    table = self.dbset.db[self.ktable]\n  File "/home/angel/web2py/gluon/packages/dal/pydal/base.py", line 914, in __getitem__\n    return self.__getattr__(str(key))\n  File "/home/angel/web2py/gluon/packages/dal/pydal/base.py", line 921, in __getattr__\n    return BasicStorage.__getattribute__(self, key)\nAttributeError: \'DAL\' object has no attribute \'ciudad\'\n'
+p292
+s.

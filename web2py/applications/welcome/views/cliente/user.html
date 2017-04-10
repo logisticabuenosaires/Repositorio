@@ -1,0 +1,21 @@
+{{extend 'layout_gestionar.html'}}
+<!-- Begin: Formulario donde se ingresan los datos necesarios -->
+{{=form}}
+<!-- End: Formulario donde se ingresan los datos necesarios -->
+
+<TABLE BORDER="0" ALIGN="CENTER">
+<TR>
+   <TD>
+{{if request.args(0)=='login':}}
+{{if not 'register' in auth.settings.actions_disabled:}}
+<br/><a href="{{=URL(r=request,args='register')}}"> {{=IMG(_src=URL(c='static', f='images/nav/registrarme.jpg'))}} </a>
+{{pass}}
+   </TD>
+   <TD>
+{{if not 'request_reset_password' in auth.settings.actions_disabled:}}
+<br/><a href="{{=URL(r=request,args='request_reset_password')}}"> {{=IMG(_src=URL(c='static', f='images/nav/password.jpg'))}} </a>
+{{pass}}
+{{pass}}
+   </TD>
+</TR>
+</TABLE>

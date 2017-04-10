@@ -1,0 +1,49 @@
+# coding: utf8
+# try something like
+def index(): return dict(message="hello from _Generar_guia_de_carga.py")
+def armar_rutas():
+    form=SQLFORM(db.Armado_de_rutas, submit_button='Grabar')
+    if form.accepts(request.vars, session):
+        response.flash = "Compra agregada"
+    elif form.errors:
+        response.flash = "Hubo errores"
+    else:
+        response.flash = "Complete formulario" #este else es por si dieron aceptar sin cargar ningun dato
+    return dict (form=form)
+def cargar_prv():
+    form=SQLFORM(db.provincia, submit_button='Aceptar')
+    if form.accepts(request.vars, session):
+        response.flash = "provincia agregado"
+    elif form.errors:
+        response.flash = "Hubo errores"
+    else:
+        response.flash = "Complete formulario"
+    return dict (f=form)
+def cargar_av():
+    form=SQLFORM(db.Avenida_principal, submit_button='Aceptar')
+    if form.accepts(request.vars, session):
+        response.flash = "Avenidas agregado"
+    elif form.errors:
+        response.flash = "Hubo errores"
+    else:
+        response.flash = "Complete formulario"
+    return dict (r=form)
+def cargar_ps():
+    form=SQLFORM(db.Paises, submit_button='Aceptar')
+    if form.accepts(request.vars, session):
+        response.flash = "Paises agregado"
+    elif form.errors:
+        response.flash = "Hubo errores"
+    else:
+        response.flash = "Complete formulario"
+    return dict (m=form)
+
+def cargar_cal():
+    form=SQLFORM(db.entre_calles, submit_button='Aceptar')
+    if form.accepts(request.vars, session):
+        response.flash = "calles agregado"
+    elif form.errors:
+        response.flash = "Hubo errores"
+    else:
+        response.flash = "Complete formulario"
+    return dict (o=form)

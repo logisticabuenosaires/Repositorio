@@ -1,0 +1,13 @@
+{{extend 'layout_pedido.html'}}
+<h1>Productos</h1>
+<table>
+{{for p in products:}}
+<td style="text-align: center">
+
+    <td>{{=p.title}} - ${{=p.precio_Venta_Articulo}}</td>
+    <td><img src="{{=URL('download',args=p.imagen)}}" height="100px"/></td>
+    <td>{{=MARKMIN(p.Detalle_Articulo)}}</td>    
+    <td><span id="{{="item%s"%p.articulo_id}}">{{=session.cart.get(p.articulo_id,0)}}</span> in cart - {{=A('CARRITO',callback=URL('cart_callback',vars=dict(id=p.articulo_id,action='add')),target='item%s'%p.articulo_id,_class='button pill')}}</td>
+  </tr>  
+{{pass}}
+</table>

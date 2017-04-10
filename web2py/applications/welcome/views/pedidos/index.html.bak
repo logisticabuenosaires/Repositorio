@@ -1,0 +1,19 @@
+{{extend 'layout_productos'}}
+
+<table>
+    <tr>
+<h1>CATEGORIAS PPRODUCTOS </h1>
+
+<ul>
+{{for d in produc:}}
+ <td style="text-align: center">
+
+<img width="200px"
+ src="{{=URL('download', args=(d.imagen if d.imagen else d.image))}}" /> 
+ 
+ {{=LI(A(d.title, _href=URL("show", args=d.productos_id)))}}
+
+{{pass}}
+    </tr>
+</ul>
+</table>

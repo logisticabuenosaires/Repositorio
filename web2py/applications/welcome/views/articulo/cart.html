@@ -1,0 +1,14 @@
+{{extend 'layout_pedido.html'}}
+ 
+<h1>carrito de compra</h1>
+<table width="100%">
+  {{for id, qty in cart.items():}}{{ p =db.articulo(id)}}
+  <tr>
+    <td> {{=p.nombre}} -${{=p.precio_Venta_Articulo}}</td>
+    <td><span id="{{='item%s'%p.articulo_id}}">{{=qty}}</span>
+    {{=A('agregue',callback=URL('cart_callback',vars=dict(id=p.articulo_id,action='add')),target='item%s'%p.articulo_id,_class='button pill')}}{{=A('saque',callback=URL('cart_callback',vars=dict(id=p.articulo_id,action='sub')),target='item%s'%p.articulo_id,_class='button pill')}}</td>
+  </tr>
+  {{pass}}
+    {{pass}}
+</table>
+<a href="{{=URL('buy')}}">checkout</a>

@@ -1,0 +1,21 @@
+{{extend esqueleto}}
+{{if auth.has_membership (group_id=3):}} 
+<center> <h1> BIENVENIDO A SECTOR DE OPERACIONES </h1> </center> 
+<FONT SIZE=3>
+<center> <h3> {{=auth.user.first_name}} {{=auth.user.last_name}} </h3> </center> 
+</FONT>
+<FONT SIZE=3>
+
+<center> 
+<br>
+<p>
+   Realice la gestion de los pedidos desde este sector.
+</p><br>
+{{=IMG(_src=URL(c='static', f='images/web2pylogo_large.png'), _alt='web2pylogo_large')}} 
+<br><br><p>
+
+</p><br>
+
+</center> 
+
+</FONT>

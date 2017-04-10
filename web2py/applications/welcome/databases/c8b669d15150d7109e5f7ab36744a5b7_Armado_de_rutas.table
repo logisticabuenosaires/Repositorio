@@ -1,0 +1,127 @@
+(dp1
+S'provincia'
+p2
+(dp3
+S'length'
+p4
+I512
+sS'unique'
+p5
+I00
+sS'sortable'
+p6
+I4
+sS'sql'
+p7
+S'INTEGER REFERENCES provincia (provincia_id) ON DELETE CASCADE  '
+p8
+sS'notnull'
+p9
+I00
+sS'type'
+p10
+S'reference provincia'
+p11
+ssS'cod_armado_de_rutas'
+p12
+(dp13
+g4
+I512
+sg5
+I00
+sg6
+I2
+sg7
+S'INTEGER'
+p14
+sg9
+I00
+sg10
+S'integer'
+p15
+ssS'id_armado_de_rutas'
+p16
+(dp17
+g4
+I512
+sg5
+I00
+sg6
+I1
+sg7
+S'INTEGER PRIMARY KEY AUTOINCREMENT'
+p18
+sg9
+I00
+sg10
+S'id'
+p19
+ssS'nombre_de_entre_calle_a'
+p20
+(dp21
+g4
+I512
+sg5
+I00
+sg6
+I6
+sg7
+S'INTEGER REFERENCES entre_calles (entre_calles_id) ON DELETE CASCADE  '
+p22
+sg9
+I00
+sg10
+S'reference entre_calles'
+p23
+ssS'av_principal'
+p24
+(dp25
+g4
+I512
+sg5
+I00
+sg6
+I5
+sg7
+S'INTEGER REFERENCES Avenida_principal (Av_principaid) ON DELETE CASCADE  '
+p26
+sg9
+I00
+sg10
+S'reference Avenida_principal'
+p27
+ssS'arm_pais'
+p28
+(dp29
+g4
+I512
+sg5
+I00
+sg6
+I3
+sg7
+S'INTEGER REFERENCES Paises (Pais_id) ON DELETE CASCADE  '
+p30
+sg9
+I00
+sg10
+S'reference Paises'
+p31
+ssS'nombre_de_entre_calle_b'
+p32
+(dp33
+g4
+I512
+sg5
+I00
+sg6
+I7
+sg7
+S'INTEGER REFERENCES entre_calles (entre_calles_id) ON DELETE CASCADE  '
+p34
+sg9
+I00
+sg10
+S'reference entre_calles'
+p35
+ss.

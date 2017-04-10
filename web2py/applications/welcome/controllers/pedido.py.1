@@ -1,0 +1,518 @@
+def pedido():
+
+
+    lista_pedidos = db(
+    (db.sale.buyer>0) & 
+    (db.sale.asignar_chofer!=None) & 
+    (db.sale.product!=None) &
+    (db.sale.asignar_transporte!=None)
+    ).select(
+    db.sale.id,
+    db.sale.fecha_de_pedido,
+    db.sale.product,   
+    db.sale.estado_pedido,
+
+    db.sale.shipping_city,    
+    orderby=db.sale.estado_pedido,)
+    
+    lista_pedidos_incompletos = db((db.sale.asignar_chofer==None) & (db.sale.asignar_transporte==None)).select(
+    db.sale.id,
+    db.sale.fecha_de_pedido,
+    db.sale.product,
+    db.sale.estado_pedido,
+    db.sale.shipping_city, 
+    db.sale.estado_pedido,
+    orderby=db.sale.fecha_de_pedido,)
+    
+#    lista_pedidos_cliente = db(db.sale.buyer==auth.user_id).select(
+#    db.sale.id,
+#    db.sale.fecha_de_pedido,
+#     db.sale.puerta_partida,
+#    db.sale.estado_pedido,
+#    orderby=db.sale.estado_pedido,)
+    
+#    lista_pedidos_chofer = db(db.sale.buyer==auth.user_id).select(
+#    db.sale.id,
+ #   db.sale.fecha_de_pedido,
+#    db.sale.puerta_partida,
+#    db.sale.shipping_date,
+#    db.sale.asignar_transporte,
+#    db.sale.buyer,
+#    db.sale.asignar_chofer,    
+ #   db.sale.estado_pedido,
+#    orderby=db.sale.estado_pedido,)
+    
+    return {'lista_pedidos' : lista_pedidos, 'lista_pedidos_incompletos' : lista_pedidos_incompletos}
+
+############################################################################################################
+
+############################################################################################################
+def registrar_pedido_cliente():
+
+    
+    # FORM 2 es el formulario que le falta CHOFER Y COCHE, lo utiliza solo el CLIENTE 
+    form = SQLFORM.factory(
+        Field("fecha_pedido", 'datetime',default=request.now, writable=False, readable=True),
+        Field("estado_pedido",label=T('Estado del pedido'),default='Pendiente', writable=False, readable=False),
+        Field("cliente_id", db.auth_user, default=auth.user_id, writable=False, readable=False,
+        requires = IS_IN_DB(db, db.auth_user.id,)),
+        Field("fecha_viaje", 'datetime'),
+        Field("coche_id", db.coche, default='0', writable=False, readable=False),
+        Field("localidad_id_partida", db.localidad,
+        requires = IS_IN_DB(db, db.localidad.id, "%(nombre_localidad)s - (%(id)s)" )),
+        Field("calle_partida", db.calle,
+        requires = IS_IN_DB(db, db.calle.id, "%(nombre_calle)s")),
+        Field("nro_calle_partida"),
+        Field("entrecalle1_partida", db.calle,
+        requires = IS_IN_DB(db, db.calle.id, "%(nombre_calle)s")),
+        Field("entrecalle2_partida", db.calle,
+        requires = IS_IN_DB(db, db.calle.id, "%(nombre_calle)s")),
+        Field("localidad_id_destino", db.localidad,
+        requires = IS_IN_DB(db, db.localidad.id, "%(nombre_localidad)s - (%(id)s)" )),
+        Field("calle_destino", db.calle,
+        requires = IS_IN_DB(db, db.calle.id, "%(nombre_calle)s")),
+        Field("nro_calle_destino"),
+        Field("entrecalle1_destino", db.calle,
+        requires = IS_IN_DB(db, db.calle.id, "%(nombre_calle)s")),
+        Field("entrecalle2_destino", db.calle,
+        requires = IS_IN_DB(db, db.calle.id, "%(nombre_calle)s")),
+        Field("chofer_id", db.auth_user,default='0', writable=False, readable=False,
+        requires = IS_IN_DB(db, db.auth_user.id, "(%(id)s) %(first_name)s %(last_name)s" )),
+        submit_button='Reservar')
+
+    if form.accepts(request.vars, session):
+        response.flash = 'Pedido realizado con exito!'
+        db.pedido.insert(
+        fecha_viaje=form.vars.fecha_viaje,
+        coche_id=form.vars.coche_id,
+        localidad_id_partida=form.vars.localidad_id_partida,
+        calle_partida=form.vars.calle_partida,
+        nro_calle_partida=form.vars.nro_calle_partida,
+        entrecalle1_partida=form.vars.entrecalle1_partida,
+        entrecalle2_partida=form.vars.entrecalle2_partida,
+        localidad_id_destino=form.vars.localidad_id_destino,
+        calle_destino=form.vars.calle_destino,
+        nro_calle_destino=form.vars.nro_calle_destino,
+        entrecalle1_destino=form.vars.entrecalle1_destino,
+        entrecalle2_destino=form.vars.entrecalle2_destino,
+        chofer_id=form.vars.chofer_id,
+        )
+    elif form.errors:
+        response.flash = 'Hay errores, por favor corrijalos.'
+        
+    return dict(form=form,esqueleto=esqueleto, nombre=nombre)    
+############################################################################################################
+
+def fecha_viaje():       
+    
+    # Begin: BUSCADOR
+    import datetime
+    
+    # FORMULARIO PARA INGRESAR DATOS
+    form = SQLFORM.factory(
+        Field("fecha1",'datetime', label="Fecha Inicial",
+        default=datetime.datetime(2000,01,01,23,59,59),
+        requires = IS_DATETIME(error_message=('No cumple con el formato requerido'))),
+        Field("fecha2",'datetime', label="Fecha Final",
+        default=datetime.datetime(2020,01,01,23,59,59),
+        requires = IS_DATETIME(error_message=('No cumple con el formato requerido'))),
+        submit_button='Buscar')
+
+    if form.accepts(request.vars, session):
+        response.flash = 'Busqueda realizada'
+    elif form.errors:
+        response.flash = 'Hay errores, por favor corrijalos.'
+    
+    # ASIGNA VARIABLES
+    fecha1=form.vars.fecha1
+    fecha2=form.vars.fecha2
+
+    # PREGUNTA SI LAS FECHAS ESTAN VACIAS Y LES ASIGNA UN VALOR PARA QUE NO HAYA ERRORES
+    if fecha1==None or fecha2==None:
+        fecha1="4000-01-01 00:00:00"
+        fecha2="4000-01-01 00:00:01"
+
+    # MUESTRA EL LISTADO DE PEDIDOS SEGUN LOS CAMPOS SOLICITADOS
+    buscar_pedidos = db((db.pedido.fecha_viaje>=fecha1) & (db.pedido.fecha_viaje<=fecha2) ).select(
+    db.pedido.id,
+    db.pedido.fecha_pedido,
+    db.pedido.fecha_viaje,
+    db.pedido.cliente_id,
+    db.pedido.chofer_id,
+    db.pedido.localidad_id_partida,
+    db.pedido.localidad_id_destino,
+    db.pedido.estado_pedido,
+    orderby=db.pedido.id,
+    )
+    return {'buscar_pedidos' : buscar_pedidos, 'form' : form, 'fecha1' : fecha1, 'fecha2' : fecha2, 'esqueleto' : esqueleto}    
+    # End: BUSCADOR
+
+############################################################################################################
+
+def fecha_pedido():
+    if auth.user_id:
+        if auth.has_membership (group_id=1):
+            redirect(URL(r=request, c="default", f="prohibido"))  
+    else:
+        redirect(URL(r=request, c="default", f="prohibido"))
+    
+    # SELECCIONA EL LAYOUT SEGUN EL USUARIO QUE SEA
+    esqueleto='layout.html'
+    if auth.has_membership (group_id=2):
+        esqueleto='layout_admin.html'
+    elif auth.has_membership (group_id=5):
+        esqueleto='layout_despachador.html'
+    elif auth.has_membership (group_id=3):
+        esqueleto='layout_cliente.html'    
+    
+    # Begin: BUSCADOR
+    import datetime
+    
+    # FORMULARIO PARA INGRESAR DATOS
+    form = SQLFORM.factory(
+        Field("fecha1",'datetime', label="Fecha Inicial",
+        default=datetime.datetime(2000,01,01,23,59,59),
+        requires = IS_DATETIME(error_message=('No cumple con el formato requerido'))),
+        Field("fecha2",'datetime', label="Fecha Final",
+        default=datetime.datetime(2020,01,01,23,59,59),
+        requires = IS_DATETIME(error_message=('No cumple con el formato requerido'))),
+        submit_button='Buscar')
+
+    if form.accepts(request.vars, session):
+        response.flash = 'Busqueda realizada'
+    elif form.errors:
+        response.flash = 'Hay errores, por favor corrijalos.'
+    
+    # ASIGNA VARIABLES
+    fecha1=form.vars.fecha1
+    fecha2=form.vars.fecha2
+
+    # PREGUNTA SI LAS FECHAS ESTAN VACIAS Y LES ASIGNA UN VALOR PARA QUE NO HAYA ERRORES
+    if fecha1==None or fecha2==None:
+        fecha1="4000-01-01 00:00:00"
+        fecha2="4000-01-01 00:00:01"
+
+    # MUESTRA EL LISTADO DE PEDIDOS SEGUN LOS CAMPOS SOLICITADOS
+    buscar_pedidos = db((db.pedido.fecha_pedido>=fecha1) & (db.pedido.fecha_pedido<=fecha2) ).select(
+    db.pedido.id,
+    db.pedido.fecha_pedido,
+    db.pedido.fecha_viaje,
+    db.pedido.localidad_id_partida,
+    db.pedido.localidad_id_destino,
+    db.pedido.cliente_id,
+    db.pedido.estado_pedido,
+    orderby=db.pedido.id,
+    )
+    return {'buscar_pedidos' : buscar_pedidos, 'form' : form, 'fecha1' : fecha1, 'fecha2' : fecha2, 'esqueleto' : esqueleto}    
+    # End: BUSCADOR
+
+############################################################################################################
+
+def coche():
+    if auth.user_id:
+        if auth.has_membership (group_id=3):
+            redirect(URL(r=request, c="default", f="prohibido"))
+    else:
+        redirect(URL(r=request, c="default", f="prohibido"))
+    
+    # SELECCIONA EL LAYOUT SEGUN EL USUARIO QUE SEA
+    esqueleto='layout.html'
+    if auth.has_membership (group_id=2):
+        esqueleto='layout_admin.html'
+    elif auth.has_membership (group_id=5):
+        esqueleto='layout_despachador.html'
+    elif auth.has_membership (group_id=1):
+        esqueleto='layout_chofer.html'    
+    
+    # Begin: BUSCADOR
+    
+    # FORMULARIO PARA INGRESAR DATOS
+    form = SQLFORM.factory(
+        Field("coche", label="Coche",
+        requires = IS_IN_DB(db, db.coche.id, "(%(id)s) %(marca)s %(modelo)s [%(patente)s] %(color)s ")),
+        submit_button='Buscar')
+
+    if form.accepts(request.vars, session):
+        response.flash = 'Busqueda realizada'
+    elif form.errors:
+        response.flash = 'Hay errores, por favor corrijalos.'
+    
+    # ASIGNA VARIABLES
+    coche=form.vars.coche
+
+    # MUESTRA EL LISTADO DE PEDIDOS SEGUN LOS CAMPOS SOLICITADOS
+    buscar_pedidos = db(db.pedido.coche_id==coche).select(
+    db.pedido.id,
+    db.pedido.fecha_pedido,
+    db.pedido.fecha_viaje,
+    db.pedido.localidad_id_partida,
+    db.pedido.localidad_id_destino,
+    db.pedido.chofer_id,
+    db.pedido.coche_id,
+    orderby=db.pedido.id,
+    )
+    return {'buscar_pedidos' : buscar_pedidos, 'form' : form, 'coche' : coche, 'esqueleto' : esqueleto}    
+    # End: BUSCADOR
+
+############################################################################################################
+
+def chofer():
+    
+    # Begin: BUSCADOR
+
+    # FORMULARIO PARA INGRESAR DATOS
+    form = SQLFORM.factory(
+        Field("chofer", label="Chofer",
+        requires = IS_IN_DB(db, db.auth_user.id, "(%(id)s) %(first_name)s %(last_name)s")),
+        submit_button='Buscar')
+
+    if form.accepts(request.vars, session):
+        response.flash = 'Busqueda realizada'
+    elif form.errors:
+        response.flash = 'Hay errores, por favor corrijalos.'
+    
+    # ASIGNA VARIABLES
+    chofer=form.vars.chofer
+
+    # MUESTRA EL LISTADO DE PEDIDOS SEGUN LOS CAMPOS SOLICITADOS
+    buscar_pedidos = db(db.pedido.chofer_id==chofer).select(
+    db.pedido.id,
+    db.pedido.fecha_pedido,
+    db.pedido.fecha_viaje,
+    db.pedido.localidad_id_partida,
+    db.pedido.localidad_id_destino,
+    db.pedido.chofer_id,
+    orderby=db.pedido.id,
+    )
+    return {'buscar_pedidos' : buscar_pedidos, 'form' : form, 'chofer' : chofer, 'esqueleto' : esqueleto}    
+    # End: BUSCADOR
+
+############################################################################################################
+
+def cliente():
+   
+    
+    # Begin: BUSCADOR
+    
+    # FORMULARIO PARA INGRESAR DATOS
+    form = SQLFORM.factory(
+        Field("cliente", label="Cliente",
+        requires = IS_IN_DB(db, db.auth_user.id, "(%(id)s) %(first_name)s %(last_name)s")),
+        submit_button='Buscar')
+
+    if form.accepts(request.vars, session):
+        response.flash = 'Busqueda realizada'
+    elif form.errors:
+        response.flash = 'Hay errores, por favor corrijalos.'
+    
+    # ASIGNA VARIABLES
+    cliente=form.vars.cliente
+
+    # MUESTRA EL LISTADO DE PEDIDOS SEGUN LOS CAMPOS SOLICITADOS
+    buscar_pedidos = db(db.pedido.cliente_id==cliente).select(
+    db.pedido.id,
+    db.pedido.fecha_pedido,
+    db.pedido.fecha_viaje,
+    db.pedido.localidad_id_partida,
+    db.pedido.localidad_id_destino,
+    db.pedido.cliente_id,
+    db.pedido.chofer_id,
+    orderby=db.pedido.id,
+    )
+    return {'buscar_pedidos' : buscar_pedidos, 'form' : form, 'cliente' : cliente, 'esqueleto' : esqueleto}    
+    # End: BUSCADOR   
+    
+############################################################################################################
+
+def localidad_destino():
+       
+    
+    # Begin: BUSCADOR
+    
+    # FORMULARIO PARA INGRESAR DATOS
+    form = SQLFORM.factory(
+        Field("localidad", label="Localidad",
+        requires = IS_IN_DB(db, db.localidad.id, "(%(id)s) %(nombre_localidad)s")),
+        submit_button='Buscar')
+
+    if form.accepts(request.vars, session):
+        response.flash = 'Busqueda realizada'
+    elif form.errors:
+        response.flash = 'Hay errores, por favor corrijalos.'
+    
+    # ASIGNA VARIABLES
+    localidad=form.vars.localidad
+
+    # MUESTRA EL LISTADO DE PEDIDOS SEGUN LOS CAMPOS SOLICITADOS
+    buscar_pedidos = db(db.pedido.localidad_id_destino==localidad).select(
+    db.pedido.id,
+    db.pedido.fecha_pedido,
+    db.pedido.fecha_viaje,
+    db.pedido.localidad_id_destino,
+    db.pedido.localidad_id_partida,
+    db.pedido.cliente_id,
+    db.pedido.chofer_id,
+    db.pedido.estado_pedido,
+    orderby=db.pedido.id,
+    )
+    return {'buscar_pedidos' : buscar_pedidos, 'form' : form, 'localidad' : localidad, 'esqueleto' : esqueleto}    
+    # End: BUSCADOR  
+    
+############################################################################################################
+
+def localidad_partida():
+       
+    
+    # Begin: BUSCADOR
+    
+    # FORMULARIO PARA INGRESAR DATOS
+    form = SQLFORM.factory(
+        Field("localidad", label="Localidad",
+        requires = IS_IN_DB(db, db.localidad.id, "(%(id)s) %(nombre_localidad)s")),
+        submit_button='Buscar')
+
+    if form.accepts(request.vars, session):
+        response.flash = 'Busqueda realizada'
+    elif form.errors:
+        response.flash = 'Hay errores, por favor corrijalos.'
+    
+    # ASIGNA VARIABLES
+    localidad=form.vars.localidad
+
+    # MUESTRA EL LISTADO DE PEDIDOS SEGUN LOS CAMPOS SOLICITADOS
+    buscar_pedidos = db(db.pedido.localidad_id_partida==localidad).select(
+    db.pedido.id,
+    db.pedido.fecha_pedido,
+    db.pedido.fecha_viaje,
+    db.pedido.localidad_id_partida,
+    db.pedido.localidad_id_destino,
+    db.pedido.cliente_id,
+    db.pedido.chofer_id,
+    db.pedido.estado_pedido,
+    orderby=db.pedido.id,
+    )
+    return {'buscar_pedidos' : buscar_pedidos, 'form' : form, 'localidad' : localidad, 'esqueleto' : esqueleto}    
+    # End: BUSCADOR         
+
+############################################################################################################
+
+def estado():
+    
+    
+    # Begin: BUSCADOR
+    
+    # FORMULARIO PARA INGRESAR DATOS
+    form = SQLFORM.factory(
+        Field("estado", label="Estado",
+        requires = IS_IN_SET(['En curso','Realizado','Pendiente'])),
+        submit_button='Buscar')
+
+    if form.accepts(request.vars, session):
+        response.flash = 'Busqueda realizada'
+    elif form.errors:
+        response.flash = 'Hay errores, por favor corrijalos.'
+    
+    # ASIGNA VARIABLES
+    estado=form.vars.estado
+
+    # MUESTRA EL LISTADO DE PEDIDOS SEGUN LOS CAMPOS SOLICITADOS
+    buscar_pedidos = db(db.pedido.estado_pedido==estado).select(
+    db.pedido.id,
+    db.pedido.fecha_pedido,
+    db.pedido.fecha_viaje,
+    db.pedido.estado_pedido,
+    db.pedido.localidad_id_partida,
+    db.pedido.localidad_id_destino,
+    db.pedido.cliente_id,
+    db.pedido.chofer_id,
+    orderby=db.pedido.id,
+    )
+    return {'buscar_pedidos' : buscar_pedidos, 'form' : form, 'estado' : estado, 'esqueleto' : esqueleto}    
+    # End: BUSCADOR  
+
+############################################################################################################
+
+def modificar_pedido():
+
+
+    if not request.args:
+        session.flash="No informo pedido a editar"
+        redirect(URL("pedido"))
+
+    ped = db(db.sale.id==request.args[0]).select()
+    if not ped:
+        session.flash="El pedido no existe"
+        redirect(URL("pedido"))
+        
+    pedido = ped[0]
+    
+    db.sale.id.readable = False
+    db.sale.id.writable = False
+   
+#    if auth.has_membership (group_id=2) or auth.has_membership (group_id=5):
+    form = SQLFORM(db.sale, pedido,
+                    deletable=True,
+                    fields=[
+                    'buyer',
+                    'product',
+  
+                      "quantity",
+                                     "price",
+
+"catalogar_pedido",
+
+
+
+"shipped",
+"estado_pedido",
+     
+"shipping_address",
+ "shipping_city",
+  "shipping_state",
+"shipping_zip_code",
+
+"tracking_number",
+"puerta_partida",
+ 
+"asignar_transporte",
+  
+"asignar_chofer",
+
+                    ],
+
+                    submit_button='Modificar')
+
+    if form.accepts(request.vars, session):
+            session.flash = "Pedido modificado"
+            redirect(URL('pedido'))
+    elif form.errors:
+            response.flash = "Hubo errores"
+    else:
+            response.flash = "Modifique el pedido"
+
+    return {'form': form,'pedido': pedido}
+
+############################################################################################################
+    
+def imprimir_pedido():
+  
+
+    pedido_id =request.args[0]
+    # Busca el pedido para mostrarlo
+    pedido = db(db.sale.id==pedido_id,db.sale.product==pedido_id).select()[0]
+     
+    cliente = db(db.auth_user.id==pedido.buyer).select()[0]
+    chofer = db(db.chofer.id==pedido.asignar_chofer).select()[0]
+  
+    localidad_destino = db(db.sale.shipping_city==pedido.shipping_city).select()[0]
+
+    producto = db(db.articulo.nombre).select()[0]
+
+
+    return dict(
+    pedido=pedido,
+    cliente=cliente,
+    chofer=chofer,
+    localidad_destino= localidad_destino,
+    producto=producto
+     )

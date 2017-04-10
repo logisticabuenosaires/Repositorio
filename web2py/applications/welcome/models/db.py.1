@@ -1,0 +1,274 @@
+# -*- coding: utf-8 -*-
+
+#########################################################################
+## This scaffolding model makes your app work on Google App Engine too
+## File is released under public domain and you can use without limitations
+#########################################################################
+
+## if SSL/HTTPS is properly configured and you want all HTTP requests to
+## be redirected to HTTPS, uncomment the line below:
+# request.requires_https()
+
+if not request.env.web2py_runtime_gae:
+    ## if NOT running on Google App Engine use SQLite or other DB
+    db = DAL('sqlite://storage.sqlite')
+else:
+    ## connect to Google BigTable (optional 'google:datastore://namespace')
+    db = DAL('google:datastore')
+    ## store sessions and tickets there
+    session.connect(request, response, db = db)
+    ## or store session in Memcache, Redis, etc.
+    ## from gluon.contrib.memdb import MEMDB
+    ## from google.appengine.api.memcache import Client
+    ## session.connect(request, response, db = MEMDB(Client()))
+
+## by default give a view/generic.extension to all actions from localhost
+## none otherwise. a pattern can be 'controller/function.extension'
+response.generic_patterns = ['*'] if request.is_local else []
+## (optional) optimize handling of static files
+# response.optimize_css = 'concat,minify,inline'
+# response.optimize_js = 'concat,minify,inline'
+
+#########################################################################
+## Here is sample code if you need for
+## - email capabilities
+## - authentication (registration, login, logout, ... )
+## - authorization (role based authorization)
+## - services (xml, csv, json, xmlrpc, jsonrpc, amf, rss)
+## - old style crud actions
+## (more options discussed in gluon/tools.py)
+#########################################################################
+
+from gluon.tools import Auth, Crud, Service, PluginManager, prettydate
+auth = Auth(db, hmac_key=Auth.get_or_create_key())
+crud, service, plugins = Crud(db), Service(), PluginManager()
+
+## create all tables needed by auth if not custom tables
+auth.define_tables()
+
+## configure email
+mail=auth.settings.mailer
+mail.settings.server = 'logging' or 'smtp.gmail.com:587'
+mail.settings.sender = 'you@gmail.com'
+mail.settings.login = 'username:password'
+
+## configure auth policy
+auth.settings.registration_requires_verification = False
+auth.settings.registration_requires_approval = False
+auth.settings.reset_password_requires_verification = True
+
+## if you need to use OpenID, Facebook, MySpace, Twitter, Linkedin, etc.
+## register with janrain.com, write your domain:api_key in private/janrain.key
+from gluon.contrib.login_methods.rpx_account import use_janrain
+use_janrain(auth,filename='private/janrain.key')
+
+#########################################################################
+## Define your tables below (or better in another model file) for example
+##
+## >>> db.define_table('mytable',Field('myfield','string'))
+##
+## Fields can be 'string','text','password','integer','double','boolean'
+##       'date','time','datetime','blob','upload', 'reference TABLENAME'
+## There is an implicit 'id integer autoincrement' field
+## Consult manual for more options, validators, etc.
+##
+## More API examples for controllers:
+##
+## >>> db.mytable.insert(myfield='value')
+## >>> rows=db(db.mytable.myfield=='value').select(db.mytable.ALL)
+## >>> for row in rows: print row.id, row.myfield
+#########################################################################
+
+db.define_table('articulo',
+   Field('articulo_id','id'),
+   Field('imagen', 'upload'),
+   Field('title' ),
+   Field('tipos_organizacion','string',requires=IS_IN_SET([ 'LAMINADOS', 'BARRAS TREFILADOS','METAL DESPLEGABLE-ALUMINIO','PERFILES ESTRUCTURALES'])),
+   Field("fecha","datetime", writable=False, readable=True, default=request.now),
+   Field('codigo_Articulo','integer',required=True,label=T('CODIGO DE ARTICULOS')),
+   Field('Detalle_Articulo', 'text'),
+   Field('espesor','integer'),Field('ancho',"integer"),Field('diametro','integer'),Field('unidades','integer',requires=IS_IN_SET([ 'gramos', 'kilogranos','unidades','botellas','cajas'])),   
+   
+   Field('precio_Compra_Articulo','double',required=True,label=T('PRECIO DE COMPRA')),
+   Field('precio_Venta_Articulo','double',required=True,label=T('PRECIO DE VENTA')), 
+   Field('cantidad','integer',required=True,label=T('CANTIDA'),),
+   Field('fecha_Baja_Articulo','date',writable=False,readable=False),)
+
+db.articulo.title.requires = IS_NOT_IN_DB(db, db.articulo.title)
+#########################################################################
+
+################################################################
+
+#db.localidad_calle.localidad.requires=IS_IN_DB(db,db.LOCALIDAD.id,'%(nombre_de_localidad)s')
+#db.localidad_calle.calle.requires=IS_IN_DB(db,db.CALLES.id,'%(nombre_de_calle)s')
+####################################################
+db.define_table('ciudades',
+   Field("ciudad",
+       requires=IS_IN_SET([
+             'Moron',
+             'Merlo',
+             'Gonzales_Catan'
+             'Pontevedra'])),
+
+
+    )
+#db.ciudades.Moron.requires=IS_IN_DB(db,db.LOCALIDAD_moron.id,'%(calles_de_moron)s')    
+#db.ciudades.Merlo.requires=IS_IN_DB(db,db.MERLO.id,'%(CALLES_MERLO)s')  
+#db.ciudades.Gonzales_Catan.requires=IS_IN_DB(db,db.CATAN.id,'%(CALLES_G_CAT)s')  
+#db.ciudades.Pontevedra.requires=IS_IN_DB(db,db.PONTEVEDRA.id,'%(CALLES_PONTEVEDRA)s')  
+    ###########################################################################
+db.define_table('Paises',
+   Field("Pais_id","id"),
+   Field("cod_pais","integer"),
+   Field("Pais"),
+   Field("capital"), )   
+
+ 
+################################################################################
+db.define_table("transporte",
+    Field("transporte_id","id"), 
+    Field("nro_patente"),
+    Field("nro_motor"),
+    Field("title"),
+    Field("marca"),
+    Field("modelo"),
+    Field("tipo"),
+    Field("fecha_compra","date"),
+    Field("costo_compra"),
+    Field("lugar_compra"),
+    Field("seguro_compania"),
+    Field("seguro_monto"),
+    Field("seguro_vencimiento","date"),
+    Field("cant_ejes"),
+    Field("color"),
+    Field("capacidad_carga"),
+    Field("verificacion_tecnica",'date'),
+    Field("odometro_adquisicion"),
+    Field("foto","upload"),
+    format='%(title)s')
+db.transporte.title.requires = IS_NOT_IN_DB(db, db.transporte.title)
+
+
+
+################################################################################################################
+
+db.define_table("estado_transporte", 
+    Field("estado_transp_id",db.transporte),
+    Field("fecha_alta","datetime", writable=False, readable=False, default=request.now),
+    Field("estado_transporte",default='Disponible',label='Estado del transporte',
+        requires=IS_IN_SET(('Disponible','en viaje','Fuera de servicio'))),)
+ 
+
+
+
+##############################
+db.define_table("Planta_origen",
+          Field('cod_planta_orig','integer',required=True,label=T('CODIGO DE PLANTA')),
+          Field('Nombre_planta_orig','string',required=True,label=T('NOMBRE')),
+          Field('Direccion_planta_orig','string',required=True,label=T('DIRECCION')),
+)
+################################
+db.define_table("Planta_destino",
+          Field('cod_planta_dest','integer',required=True,label=T('CODIGO DE PLANTA')),
+          Field('Nombre_planta_dest','integer',required=True,label=T('NOMBRE')),
+          Field('Direccion_planta_dest','string',required=True,label=T('DIRECCION')),
+) 
+#######################
+
+###############################################
+db.define_table("deposito",
+          Field("cod_deposito","integer"),
+          Field('tipos_organizacion_dep','string',requires=IS_IN_SET([ 'LAMINADOS', 'BARRAS TREFILADOS','METAL DESPLEGABLE-ALUMINIO','PERFILES ESTRUCTURALES'])),
+          Field("fecha_deposito","date"),)
+     
+     
+#########################
+db.define_table("incidencia",
+          Field('codigo_incidencia','integer',required=True,label=T('CODIGO DE incidencia')),
+          Field("fecha","datetime", writable=False, readable=True, default=request.now),
+          Field("observaciones","text", required=True,label=T('OBSERVACIONES')),)
+
+
+db.define_table("chofer",
+    Field("nombre",required=True),
+    Field("apellido",required=True),
+    Field('foto', 'upload'),
+    Field("dni",unique=True),
+    Field("fecha_nacimiento",'date'),
+    Field("direccion"),
+    Field("ciudad",db.Paises),
+    Field("provincia"),
+    Field("pais"),
+    Field("telefono"),
+    Field("mail"),
+    Field("categoria","string", writable=False, readable=False),
+    Field("nro_licencia","integer"),
+    Field("vencimiento", 'date'),
+    Field("fecha_alta","datetime", writable=False, readable=False, 
+    default=request.now),
+    )
+db.chofer.pais.requires=IS_IN_DB(db,db.Paises.id,'%(cod_pais)s)-%(Pais)s)-%(capital)s')
+db.chofer.nombre.requires=IS_NOT_EMPTY(error_message='coloque el nombre')    
+db.chofer.apellido.requires=IS_NOT_EMPTY(error_message='coloque el apellido')
+db.chofer.dni.requires=IS_NOT_EMPTY(error_message='debe colocar nº de dni'), IS_NOT_IN_DB(db, db.chofer.dni)
+db.chofer.direccion.requires=IS_NOT_EMPTY(error_message='coloque la direccion')
+db.chofer.ciudad.requires=IS_NOT_EMPTY(error_message='coloque la ciudad')
+db.chofer.direccion.requires=IS_NOT_EMPTY(error_message='coloque la direccion')
+db.chofer.categoria.requires = IS_IN_SET(['chofer', 'peon de carga', 'empleado mantenimiento'])
+######################################################e
+db.define_table('pedido',
+    Field('cliente',db.auth_user),
+    Field('Aticulo',db.articulo,
+    requires = IS_IN_DB(db, db.articulo.articulo_id,"db.articulo.title","db.articulo.precio_Compra_Articulo")),
+    Field('cantidad','integer'),)
+
+######################################
+db.define_table('stock',
+    Field('cod_art', db.articulo),
+    Field('cantidad', 'integer'), # + para ingresos, - para egresos
+    Field('fecha', 'datetime', default=request.now),
+    )
+
+db.define_table('factura',
+    Field('nro_fact', 'id'),
+    Field('fecha', 'date', default=request.now.date()),
+    Field('cod_cli', db.auth_user),
+    Field('total', 'double'),
+    Field('lugar_entrega', 'text'), 
+    )
+    
+db.define_table('venta',
+    Field('nro_fact', db.factura),
+    Field('cantidad', 'integer'),
+    Field('cod_art', db.articulo),
+    Field('importe', 'double'), 
+    Field('precio_unitario', 'double'), 
+    Field('sub_total', 'double'),
+    )
+ 
+db.venta.cod_art.requires=IS_IN_DB(db,db.articulo.id,'%(codigo_Articulo)s)-%(tipos_organizacion)s)-%(Detalle_Articulo)s-%(cantidad)s') 
+
+########################################
+db.define_table('venta_item',
+    Field('factura_id', db.factura), 
+    Field('product_id', db.articulo), 
+    Field('cantidad', 'double'), 
+    Field('price', 'double'), 
+    Field('sub_total', 'double'), 
+)
+
+#############################################
+db.define_table('comentarios', 
+    Field('articulo', db.articulo), 
+    Field('persona'), 
+    Field('email'), 
+    Field('body', 'text'), 
+    Field('rate', 'integer'),
+)
+############################
+
+db.define_table('opcion',
+    Field('producto', db.articulo,requires = IS_IN_DB(db, db.articulo.articulo_id,"db.articulo.title","db.precio_Venta_Articulo")),
+    Field('descripcion'),
+    Field('precio', 'double', default=1.0),
+)

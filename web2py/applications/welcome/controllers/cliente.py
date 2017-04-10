@@ -1,0 +1,33 @@
+############################################################################################################
+# Este controlador contiene las paginas del CLIENTE, se necesita estar logueado como tal para poder navegar.
+############################################################################################################
+
+@auth.requires_membership(role='Cliente')
+def index():
+    if auth.user_id:
+        if auth.has_membership (group_id=4):
+            redirect(URL(r=request, c="administrador"))
+        if auth.has_membership (group_id=5):
+            redirect(URL(r=request, c="Operador"))    
+        return dict()
+    response.flash = T('Bienvenido a Remizer. USTED ES UN CLIENTE')
+    return dict(message=T('Hola CLIENTE'))
+
+############################################################################################################
+
+@auth.requires_membership(role='Cliente')
+def user():
+    return dict(form=auth())
+
+############################################################################################################
+
+@auth.requires_membership(role='Cliente')
+def download():
+    return response.download(request,db)
+
+############################################################################################################
+
+@auth.requires_membership(role='Cliente')
+def call():
+    session.forget()
+    return service()

@@ -1,0 +1,11 @@
+{{extend 'layout_pedido.html'}}
+<h1>Esta es la plantilla  de documentacion</h1>
+ <center></td>
+    {{=A('Iprimir remito', _href=URL(r=request, f='imprimir_remito', args=pedido.id), _target="_new")}}
+    </center></td>
+ <center></td>
+    {{=A('Iprimir factura', _href=URL(r=request, f='imprimir_Factura', args=pedido.id), _target="_new")}}
+    </center></td>
+ <center></td>
+    {{=A('Iprimir hja de ruta', _href=URL(r=request, f='imprimir_hoja_de_ruta', args=pedido.id), _target="_new")}}
+    </center></td>

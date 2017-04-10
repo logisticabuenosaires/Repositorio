@@ -1,0 +1,4 @@
+
+{{extend 'layout.html'}}
+<h1>This is the layout_compras.html template</h1>
+{{=BEAUTIFY(response._vars)}}

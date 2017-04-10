@@ -1,0 +1,30 @@
+{{extend esqueleto}}
+
+<center> <h1> OPERADOR </h1> <br>
+</center>
+<table border="0" width="100%">
+<tr>
+    <th><center> Codigo </center></th>
+    <th><center> Nombre </center></th>
+    <th><center> Apellido </center></th>
+    <th><center> DNI </center></th>
+    <th><center> Localidad </center></th>
+    <th><center> Domicilio </center></th>
+    <th><center> Nro Domicilio </center></th>
+    <th><center> Opciones </center></th>
+</tr>
+{{for despachador in lista_despachadores:}}
+<tr>
+    <td><center> {{=Operador.id}} </center></td>
+    <td><center> {{=Operador.first_name}} </center></td>
+    <td><center> {{=Operador.last_name}} </center></td>
+    <td><center> {{=Operador.dni}} </center></td>
+    <td><center> {{=Operador.localidad}} </center></td>
+    <td><center> {{=Operador.calle}} </center></td>
+    <td><center> {{=Operador.nro_calle}} </center></td>
+    <td><center> {{=A('Modificar', _href=URL(r=request, f='modificar_usuario', args=despachador.id))}}
+    </center><td>
+</tr>
+{{pass}}
+</table>
+<br>

@@ -1,0 +1,22 @@
+# coding: utf8
+# try something like
+from gluon.tools import geocode 
+def index(): return dict(message="hello from prueba.py")
+
+def set_lat_long(): 
+
+    address = form.vars.direccion  ,
+    form.vars.codigo_postal ,
+    form.vars.poblacion ,
+    form.vars.provincia ,
+    form.vars.pais 
+    (latitude,longitude)=geocode(address) 
+    verificar_address=0 
+    if (latitude,longitude)!=(0,0): 
+       form.vars.latitude=latitude 
+       form.vars.longitude=longitude 
+       leyenda = 'Vendedor ' + form.vars.first_name + ' en ' + address 
+       form.vars.map_popup=leyenda 
+    else: 
+        verificar_address = 1 
+    return dict(address=address,verificar_address=verificar_address)

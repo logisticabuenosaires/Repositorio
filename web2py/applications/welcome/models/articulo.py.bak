@@ -1,0 +1,21 @@
+# coding: utf8
+
+db.define_table('articulo',
+   Field('articulo_id','id'),
+   Field('imagen', 'upload'),
+   Field('title',notnull=True,unique=True ),
+   Field('tipos_organizacion','string',requires=IS_IN_SET([ 'LAMINADOS', 'BARRAS TREFILADOS','METAL DESPLEGABLE-ALUMINIO','PERFILES ESTRUCTURALES'])),
+   Field("fecha","datetime", writable=False, readable=True, default=request.now),
+   Field('codigo_Articulo','integer',required=True,label=T('CODIGO DE ARTICULOS')),
+   Field('Detalle_Articulo', 'text'),
+   Field('espesor','integer'),Field('ancho',"integer"),Field('diametro','integer'),Field('unidades','integer',requires=IS_IN_SET([ 'gramos', 'kilogranos','unidades','botellas','cajas'])),   
+   
+   Field('precio_Compra_Articulo','double',required=True,label=T('PRECIO DE COMPRA')),
+   Field('precio_Venta_Articulo','double',required=True,label=T('PRECIO DE VENTA')), 
+   Field('cantidad','integer',required=True,label=T('CANTIDA'),),
+   Field('fecha_Baja_Articulo','date',writable=False,readable=False),
+   Field('sortable','integer'),
+   auth.signature,
+   format='%(title)s')
+
+db.articulo.title.requires = IS_NOT_IN_DB(db, db.articulo.title)

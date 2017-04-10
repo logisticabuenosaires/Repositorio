@@ -1,0 +1,325 @@
+body, h1, h2, h3, h4, h5, h6,
+blockquote, p, address, form, fieldset,
+ul, ol, dl, dt, dd, li, hr, th {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+  /  background: #272727 url('images/page_background.jpg') repeat-y top center;
+   font-family: "Trebuchet MS", Arial, Helvetica, Sans-serif;
+  / font-size: 0.75em;
+    text-align: center;
+}
+
+/*********** Begin: Cartelitos Web2py ***********/
+div.flash {
+    position: absolute;
+    float: left;
+    padding: 5px;
+    top: 0px;
+    left: 30%;
+    opacity: 0.95;
+    margin: 10px 10px 10px 10px;
+    text-align: center;
+    clear: both;
+    color: #fff;
+    font-size: 11pt;
+    text-align: center;
+    vertical-align: middle;
+    cursor: pointer;
+    background: black;
+    border: 2px solid #fff;
+    -moz-border-radius: 5px;
+    -webkit-border-radius: 5px;
+    z-index: 2;
+}
+
+/div.error {
+    -moz-border-radius: 5px;     
+    -webkit-border-radius: 5px; 
+    border: 1px solid #666;
+    background-color: red;
+    color: white;
+    padding: 2px;
+
+}
+
+/*********** End: Cartelitos Web2py ***********/
+
+
+/**
+ * Hyperlinks
+ */
+a {
+    
+}
+
+a:hover, a:visited:hover {
+    
+}
+
+a:visited {
+    
+}
+
+a img {
+    border: 0;
+}
+
+
+/**
+ * Container
+ */
+#container {
+    background: #cecece;
+    width: 902px;
+    margin: 0 auto 0 auto;
+    text-align: left;
+}
+
+/**
+ * Topbar / Welcome
+ */
+#welcome {
+   background: url('images/topbar.jpg') no-repeat;
+    height: 34px;
+    overflow: hidden;
+}
+
+#welcome p {
+    color: #505050;
+    font-family: Tahoma;
+    font-size: 0.83em;
+    padding: 10px;
+    text-align: right;
+}
+
+#welcome a {
+ /   color: #505050;
+  /  font-weight: bold;
+  /  text-decoration: none;
+}
+
+
+/**
+ /* Banner
+ */
+#banner {
+/    height: 125px;
+/    width: 902px;
+}
+
+/**
+ * Navigation, login
+ */
+#navigation {
+    background: #fff url('images/main_menu_bg.jpg') repeat-x;
+    clear: both;
+    height: 38px;
+}
+
+#navigation li {
+    float: left;
+    height: 38px;
+    list-style: none;
+    margin: 0 1px 0 0;
+    overflow: hidden;
+    left: 113px;
+}
+
+/**
+ * Botones animados
+ */
+a.button{
+    border: 0 0 0 0;
+    padding: 0;
+    text-align: center;
+    background-image:url('images/nav/boton.jpg');
+    background-position: center top;
+    letter-spacing: -0.03em;
+    height:38px;
+    width:113px;
+    display: block;
+    color: #696969;
+    text-decoration: none;
+    background-repeat: no-repeat;
+    font-weight: bold;
+    line-height:2em;
+}
+
+a:hover.button{
+background-image:url('images/nav/boton_hover.jpg');
+}
+
+a:focus.button{
+background-image:url('images/nav/boton_focus.jpg');
+}
+
+#navigation li a img {
+    border: 0;
+}
+
+/**
+ * Login form
+ */
+#navigation form {
+    display: inline;
+}
+
+#navigation input.text {
+    background: url('images/login/input_text.jpg') no-repeat;
+    border: 0;
+    font-size: 0.67em;
+    /*height: 16px;*/
+    height: 10px;
+    margin: 0 0 0 1px;
+    padding: 3px;
+    /*width: 104px;*/
+    width: 98px;
+}
+
+#navigation li.login {
+    background: url('images/nav/login.jpg') no-repeat;
+    /*height: 38px;*/
+    height: 32px;
+    margin: 0 0 0 2px;
+    padding: 4px 2px 2px 2px;
+    text-align: center;
+    /*width: 216px;*/
+    width: 212px;
+}
+
+#navigation input.login, #navigation input.register, #navigation input.help {
+    border: 0;
+    cursor: pointer;
+    height: 20px;
+    margin: 2px 0 0 0;
+    overflow: hidden;
+}
+
+#navigation input.login {
+    background: url('images/login/button_login.jpg') no-repeat;
+    width: 29px;
+}
+
+#navigation input.register {
+    background: url('images/login/button_register.jpg') no-repeat;
+    width: 63px;
+}
+
+#navigation input.help {
+    background: url('images/login/button_help.jpg') no-repeat;
+    width: 34px;
+}
+
+/**
+ * Column Structure
+ */
+#columns {
+    clear: both;
+    width: 902px;
+}
+
+.column {
+    float: left;
+    overflow: hidden;
+}
+
+.left {
+    width: 227px;
+}
+
+.main {
+    background: #fff url('images/main_content_bg.jpg') repeat-x;
+    margin: 0 1px 0 1px;
+    width: 900px;
+    padding: 6px 0 0 0;
+    
+}
+
+.main * 
+
+.right {
+    width: 208px;
+}
+
+/**
+ * Headings
+ */
+
+/* === SIDEBARS === */
+.left h2, .right h2 {
+    height: 38px;
+}
+
+/**
+ * Main Content
+ */
+.main h2 {
+    background: url('images/main_content_heading.jpg') no-repeat;
+    /*height: 65px;*/
+    height: 45px;
+    /*width: 450px;*/
+    width: 430px;
+    color: #fff;
+    font-size: 1.33em;
+    padding: 10px;
+    text-transform: uppercase;
+    margin: 0 auto;
+}
+
+.main h2 .info {
+    display: block;
+    font-size: 0.60em;
+    text-transform: none;
+    padding: 0 0 0 20px;
+}
+
+.main p {
+    margin: 0 0 0 5px;
+}
+
+.main .read_more {
+    text-align: right;
+}
+
+.main .read_more a {
+    color: #313131;
+    text-decoration: none;
+    font-weight: bold;
+    text-transform: lowercase;
+}
+
+.main ul, .main ol, .main h3 {
+    margin: 0 0 0 5px;
+}
+
+/**
+ * Footer
+ */
+#footer {
+    background: url('images/footer.jpg') no-repeat;
+    clear: both;
+    font-size: 0.83em;
+    /*height: 58px;*/
+    height: 46px;
+    padding: 10px 0 0 0;
+}
+
+#footer_navigation li {
+    display: inline;
+    list-style: none;
+    margin: 0 10px 0 10px;
+}
+
+#footer_navigation a {
+    color: #203d54;
+    font-weight: bold;
+    text-decoration: none;
+}
+
+#footer p {
+    color: #818181;
+    padding: 10px 0 0 10px;
+}

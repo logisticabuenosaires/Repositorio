@@ -1,0 +1,19 @@
+{{extend 'layout_pedido.html'}}
+<h2>{{=invoice}}</h2>
+{{suma=0}}
+
+
+<tr><TD>DESCRIPCION: </td> <td> {{=sale.product}}</TD></tr>
+<tr><TD>CANTIDAD: </td> <td> {{=sale.quantity}}</TD></tr>
+<tr><TD> PRECIO </td> <td> {{=sale.price*sale.quantity}}</TD></tr>
+{{suma+=sale.price}}
+{{pass}}
+</table>
+
+
+ PRECIO TOTAL {{=suma}}
+<BR>
+<BR>
+<form><input aling "left" type="button" value=" Imprimir " onclick="window.print();return false;" /></form>
+</body>
+</html>

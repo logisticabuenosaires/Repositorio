@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="{{=T.accepted_language or 'es'}}">
+
+<head>
+    <titleOR >GESTOR C3</title>
+    <link rel="shortcut icon" href="{{=URL(request.application,'static','favicon.ico')}}"     type="image/vnd.microsoft.icon">
+    <meta http-equiv="content-type" content="text/html;charset=utf-8" />
+    <meta http-equiv="Content-Style-Type" content="text/css" />
+    {{response.files.append(URL(request.application,'static','default.css'))}}
+    {{ include 'web2py_ajax.html' }}    
+</head>
+
+<body>
+
+<!-- Begin: Script para poder guardar los cambios -->
+<script>
+    jQuery(document).ready(function(){
+        jQuery('ul.sf-menu').superfish({delay:400});});
+</script>
+<!-- End: Script para poder guardar los cambios -->
+
+    <!-- Begin: container -->
+    <div id="container">
+    
+        <!-- End: Barra USER -->
+        <div id="welcome">
+        <p>
+
+        {{ if 'auth' in globals():}}
+        {{if not auth.user:}}
+        
+        <a href="{{=URL(r=request,c='default',f='user/login')}}">{{=T('Ingresar')}}</a> |
+        <a href="{{=URL(r=request,c='default',f='user/register')}}">{{=T('Registrarse')}}</a> |
+        <a href="{{=URL(r=request,c='default',f='user/request_reset_password')}}">{{=T('Olvide mi contraseña')}}</a>
+        {{else:}}
+        Bienvenido/a
+        {{=auth.user.first_name}} {{=auth.user.last_name}} |
+        <a href="{{=URL(r=request,c='pedido',f='user/profile')}}">{{=T('Perfil')}}</a> |
+        <a href="{{=URL(r=request,c='pedido',f='user/change_password')}}">{{=T('Cambiar contraseña')}}</a> |
+        <a href="{{=URL(r=request,c='pedido',f='user/logout')}}">{{=T('Salir')}}</a>
+        {{pass}}
+        {{pass}}
+               
+        </p>
+        </div>        
+        <!-- End: Barra USER -->
+        
+        <!-- Begin: Cartelito con mensajes -->
+        <div class="flash">{{=response.flash or ''}}</div>
+        <!-- End: Cartelito con mensajes -->
+          
+        <!-- Banner Image -->
+        <h1 id="banner">
+            {{=IMG(_src=URL(c='static', f='images/ACCESO.jpg'), _alt='banner')}} 
+        </h1>
+        
+        <!-- Navigation -->
+        <ol id="navigation">
+            <li><a class="button" href="{{=URL(request.application,'default','index')}}">INICIO</a></li>
+            <li><a class="button" href="{{=URL(request.application,'operador','altas_pedido')}}">ALTAS</a></li>
+            <li><a class="button" href="{{=URL(request.application,'operador','altas_pedido')}}">LISTADOS</a></li>
+            
+               <!--{{=IMG(_src=URL(c='static', f='images/web2pylogo.png'))}} -->
+      </ol>
+        
+        <!-- Begin: columns -->
+      <div id="columns">
+            
+            <!-- Begin: column main -->
+           <div class="column main">
+            
+
+<!-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->               
+
+
+<!-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+                
+     {{ include }}
+
+<!-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+
+
+<!-- +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+   
+                 
+            <!-- End: column main -->
+           </div>
+                    
+        <!-- End: columns -->
+       </div>
+        
+        <!-- Footer -->
+        <div id="footer">
+            <ol id="footer_navigation">
+             <li> 
+            <li> {{=IMG(_src=URL(c='static', f='logos/gmeil.jpg'))}} <A HREF="https://accounts.google.com">
+                {{=IMG(_src=URL(c='static', f='logos/images.jpg'))}} <A HREF="https://www.facebook.com">
+                    {{=IMG(_src=URL(c='static', f='logos/twiter.jpg'))}} <A HREF="https://twitter.com">
+
+            </ol>
+            <p> Esta pagina contiene &copy; Copyright 2010 <a href="http://www.C3_sys.com.ar" target="_new">C3 SYS</a>, Todos los derechos quedan reservados.</p>
+        </div>
+    
+    <!-- End: #container -->
+    </div>

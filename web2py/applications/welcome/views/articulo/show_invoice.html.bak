@@ -1,0 +1,43 @@
+{{extend 'layout.html'}}
+<html>
+<body>
+<H1><table border ="1" summary=><TR><TH>FACTURA de L P</TR></TD></table></H1>
+<br>
+<TR>
+
+<table border ="1" >
+<TR>
+<TH rowspan="2">
+ {{=IMG(_src=URL(r=request,c='static', f='logfac.png'))}} <br>La linea mas completa en articulos<br> de camping y repuestos <br>del hogar.Importador & Exportador  <br>  </TH> 
+ 
+<TH>FACTURA {{=IMG(_src=URL(r=request,c='static', f='a.png'))}}  </TH>
+
+</TR>
+ 
+<tr><td>NUMERO DE FACTURA:   {{=invoice.numero}}  </td> </tr>
+<tr><td> FECHA:</td><td> {{=invoice.fecha}}</td></tr>
+<tr><td>CUIT:</td> <td> {{=client.CUIT}}</td></tr>
+<tr><td> NOMBRE:</td> <td> {{=client.first_name}} </td></tr>
+<tr><td> APELLIDO: </td> <td> {{=client.last_name}} </td></tr>
+<tr><td> DIRECCION PARTICULAR:</td> <td>  {{=client.address1}}</td></tr>
+<tr> <td>LUGAR DE ENTREGA:</td> <td> {{=client.address2}}</td></tr>
+          
+          
+          
+{{suma=0}}
+<ul>{{for it in invoice_lines:}}</ul>
+
+<tr><TD>DESCRIPCION: </td> <td> {{=it.product.name}}</TD></tr>
+<tr><TD>CANTIDAD: </td> <td> {{=it.invoice_item.quantity}}</TD></tr>
+<tr><TD> PRECIO </td> <td> {{=it.invoice_item.price*it.invoice_item.quantity}}</TD></tr>
+{{suma+=it.invoice_item.price}}
+{{pass}}
+</table>
+
+
+ PRECIO TOTAL {{=suma}}
+<BR>
+<BR>
+<form><input aling "left" type="button" value=" Imprimir " onclick="window.print();return false;" /></form>
+</body>
+</html>
